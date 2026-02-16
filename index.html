@@ -2,90 +2,93 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>HORROR CITY FINAL</title>
+<title>HORROR CITY STABLE</title>
 <style>
 body{margin:0;overflow:hidden;background:black;}
 #ui{
  position:absolute;
- top:10px;
- left:10px;
- color:white;
- font-family:sans-serif;
+ top:10px;left:10px;
+ color:white;font-family:sans-serif;
 }
 #staminaBar{
  width:200px;height:20px;background:#333;margin-top:5px;
 }
 #stamina{height:100%;width:100%;background:lime;}
-#scare{
- position:fixed;top:0;left:0;width:100%;height:100%;
- display:none;justify-content:center;align-items:center;
- background:black;overflow:hidden;
-}
-#scareFace{
- font-size:200px;
-}
 </style>
 </head>
 <body>
 
 <div id="ui">
-WASD移動 / Shiftダッシュ / F振り向き
+WASD移動 / Shiftダッシュ / F振り向き / Lライト
 <div id="staminaBar"><div id="stamina"></div></div>
 </div>
-
-<div id="scare"><div id="scareFace">👁</div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
 <script>
 
+//////////////////////////////////////////////////
+// 基本設定
+//////////////////////////////////////////////////
+
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x0a0a1a);
+scene.background=new THREE.Color(0x050510);
 
 const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
 camera.position.set(0,1.7,0);
 
 const renderer=new THREE.WebGLRenderer();
 renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0x404040,2));
-const moon=new THREE.DirectionalLight(0x8888ff,1);
-moon.position.set(5,10,5);
-scene.add(moon);
+scene.add(new THREE.AmbientLight(0x222233,1));
+
+//////////////////////////////////////////////////
+// 懐中電灯（スポットライト）
+//////////////////////////////////////////////////
+
+const flashlight=new THREE.SpotLight(0xffffff,2,30,Math.PI/8,0.5);
+flashlight.castShadow=true;
+scene.add(flashlight);
+scene.add(flashlight.target);
+
+let flashlightOn=true;
+
+//////////////////////////////////////////////////
+// 地面
+//////////////////////////////////////////////////
 
 const ground=new THREE.Mesh(
  new THREE.PlaneGeometry(200,200),
  new THREE.MeshStandardMaterial({color:0x111111})
 );
 ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
 scene.add(ground);
 
 //////////////////////////////////////////////////
-// 建物（見やすく）
+// 建物（スポーン周辺除外）
 //////////////////////////////////////////////////
+
 const buildingBoxes=[];
 function createHouse(x,z){
+ // スポーン安全エリア（半径8m）
+ if(Math.sqrt(x*x+z*z)<8) return;
+
  const base=new THREE.Mesh(
    new THREE.BoxGeometry(4,4,4),
    new THREE.MeshStandardMaterial({color:0x5555aa})
  );
  base.position.set(x,2,z);
+ base.castShadow=true;
  scene.add(base);
-
- const roof=new THREE.Mesh(
-   new THREE.ConeGeometry(3.5,2,4),
-   new THREE.MeshStandardMaterial({color:0x222244})
- );
- roof.position.set(x,5,z);
- roof.rotation.y=Math.PI/4;
- scene.add(roof);
 
  const box=new THREE.Box3().setFromObject(base);
  buildingBoxes.push(box);
 }
 
-for(let x=-25;x<=25;x+=6){
- for(let z=-25;z<=25;z+=6){
+for(let x=-30;x<=30;x+=6){
+ for(let z=-30;z<=30;z+=6){
    if(Math.random()>0.2) createHouse(x,z);
  }
 }
@@ -93,21 +96,29 @@ for(let x=-25;x<=25;x+=6){
 //////////////////////////////////////////////////
 // 敵
 //////////////////////////////////////////////////
+
 const enemy=new THREE.Mesh(
  new THREE.BoxGeometry(2,5,2),
  new THREE.MeshStandardMaterial({color:0xaa0000})
 );
 enemy.position.set(-20,2.5,-20);
+enemy.castShadow=true;
 scene.add(enemy);
 
 //////////////////////////////////////////////////
-// 入力
+// 入力処理
 //////////////////////////////////////////////////
+
 const keys={};
 document.addEventListener("keydown",e=>{
- keys[e.key.toLowerCase()]=true;
- if(e.key.toLowerCase()==="f"){
-   yaw+=Math.PI;
+ const k=e.key.toLowerCase();
+ keys[k]=true;
+
+ if(k==="f"){ yaw+=Math.PI; } // ←補間と分離して安定
+
+ if(k==="l"){
+   flashlightOn=!flashlightOn;
+   flashlight.intensity=flashlightOn?2:0;
  }
 });
 document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
@@ -116,6 +127,10 @@ document.body.addEventListener("click",()=>{
  document.body.requestPointerLock();
 });
 
+//////////////////////////////////////////////////
+// カメラ制御（酔い防止）
+//////////////////////////////////////////////////
+
 let pitch=0;
 let yaw=0;
 let targetPitch=0;
@@ -123,23 +138,26 @@ let targetYaw=0;
 
 document.addEventListener("mousemove",e=>{
  if(document.pointerLockElement===document.body){
-   targetYaw-=e.movementX*0.0015;   // 感度低下
+   targetYaw-=e.movementX*0.0015;
    targetPitch-=e.movementY*0.0015;
-   targetPitch=Math.max(-Math.PI/3,Math.min(Math.PI/3,targetPitch)); // 可動域制限
+   targetPitch=Math.max(-Math.PI/3,Math.min(Math.PI/3,targetPitch));
  }
 });
 
 //////////////////////////////////////////////////
 // スタミナ
 //////////////////////////////////////////////////
+
 let stamina=100;
 const staminaEl=document.getElementById("stamina");
 
 //////////////////////////////////////////////////
-// 移動（スライド衝突）
+// 移動（スライド式）
 //////////////////////////////////////////////////
+
 function move(){
  let speed=0.12;
+
  if(keys["shift"]&&stamina>0){
    speed=0.25;
    stamina-=0.6;
@@ -149,13 +167,10 @@ function move(){
  staminaEl.style.width=stamina+"%";
  staminaEl.style.background=stamina<30?"red":"lime";
 
- const dir=new THREE.Vector3();
- dir.set(Math.sin(yaw),0,Math.cos(yaw));
-
+ const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
  const right=new THREE.Vector3(-dir.z,0,dir.x);
 
  let moveVec=new THREE.Vector3();
-
  if(keys["w"]) moveVec.add(dir);
  if(keys["s"]) moveVec.sub(dir);
  if(keys["a"]) moveVec.sub(right);
@@ -164,16 +179,14 @@ function move(){
  if(moveVec.length()>0){
    moveVec.normalize().multiplyScalar(speed);
 
-   // X方向チェック
    camera.position.x+=moveVec.x;
    if(checkCollision()) camera.position.x-=moveVec.x;
 
-   // Z方向チェック
    camera.position.z+=moveVec.z;
    if(checkCollision()) camera.position.z-=moveVec.z;
  }
 
- camera.position.y=1.7; // 完全固定
+ camera.position.y=1.7;
 }
 
 function checkCollision(){
@@ -190,8 +203,8 @@ function checkCollision(){
 //////////////////////////////////////////////////
 // 敵追跡
 //////////////////////////////////////////////////
+
 let scareCooldown=0;
-let shaking=0;
 
 function updateEnemy(){
  const dx=camera.position.x-enemy.position.x;
@@ -209,30 +222,44 @@ function updateEnemy(){
 }
 
 //////////////////////////////////////////////////
-// ジャンプスケア
+// 3Dジャンプスケア
 //////////////////////////////////////////////////
+
 function jumpscare(){
- if(scareCooldown>0)return;
+ if(scareCooldown>0) return;
  scareCooldown=200;
- shaking=60;
 
- const scare=document.getElementById("scare");
- scare.style.display="flex";
+ const face=new THREE.Mesh(
+   new THREE.SphereGeometry(3,32,32),
+   new THREE.MeshBasicMaterial({color:0xffffff})
+ );
+ scene.add(face);
 
- setTimeout(()=>{
-   scare.style.display="none";
-   camera.position.set(0,1.7,0);
-   enemy.position.set(-20,2.5,-20);
- },1200);
+ face.position.copy(camera.position);
+ face.position.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(2));
+
+ let shake=30;
+
+ const interval=setInterval(()=>{
+   camera.position.x+=(Math.random()-0.5)*0.3;
+   camera.position.z+=(Math.random()-0.5)*0.3;
+   shake--;
+   if(shake<=0){
+     clearInterval(interval);
+     scene.remove(face);
+     camera.position.set(0,1.7,0);
+     enemy.position.set(-20,2.5,-20);
+   }
+ },30);
 }
 
 //////////////////////////////////////////////////
 // アニメーション
 //////////////////////////////////////////////////
+
 function animate(){
  requestAnimationFrame(animate);
 
- // カメラ補間（酔い軽減）
  yaw+=(targetYaw-yaw)*0.15;
  pitch+=(targetPitch-pitch)*0.15;
  camera.rotation.set(pitch,yaw,0);
@@ -240,14 +267,12 @@ function animate(){
  move();
  updateEnemy();
 
- // 画面振動
- if(shaking>0){
-   camera.position.x+= (Math.random()-0.5)*0.2;
-   camera.position.z+= (Math.random()-0.5)*0.2;
-   shaking--;
- }
+ // ライトをカメラに追従
+ flashlight.position.copy(camera.position);
+ const lightDir=camera.getWorldDirection(new THREE.Vector3());
+ flashlight.target.position.copy(camera.position.clone().add(lightDir));
 
- if(scareCooldown>0)scareCooldown--;
+ if(scareCooldown>0) scareCooldown--;
 
  renderer.render(scene,camera);
 }
