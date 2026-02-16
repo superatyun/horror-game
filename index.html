@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Midwest Motel - 1998</title>
+<style>
+body { margin:0; overflow:hidden; background:black; }
+#ui {
+position:absolute;
+top:20px;
+left:20px;
+color:white;
+font-family:monospace;
+z-index:10;
+}
+button {
+padding:10px;
+background:black;
+color:white;
+border:1px solid white;
+cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+<div id="message">Find the Exit. Do Not Let It See You.</div>
+<button id="retry" style="display:none;">Retry</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+let scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x000000, 5, 25);
+
+let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+let renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+let floorGeo = new THREE.PlaneGeometry(50,50);
+let floorMat = new THREE.MeshStandardMaterial({color:0x222222});
+let floor = new THREE.Mesh(floorGeo,floorMat);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+
+let light = new THREE.SpotLight(0xffffff,3,20,Math.PI/6,0.5);
+light.position.set(0,5,0);
+scene.add(light);
+scene.add(light.target);
+
+let ambient = new THREE.AmbientLight(0x111111);
+scene.add(ambient);
+
+let enemyGeo = new THREE.BoxGeometry(1,2,1);
+let enemyMat = new THREE.MeshStandardMaterial({color:0x000000});
+let enemy = new THREE.Mesh(enemyGeo,enemyMat);
+enemy.position.set(10,1,10);
+scene.add(enemy);
+
+camera.position.set(0,2,5);
+
+let keys = {};
+document.addEventListener("keydown", e=>keys[e.code]=true);
+document.addEventListener("keyup", e=>keys[e.code]=false);
+
+let gameOver=false;
+
+function resetGame(){
+camera.position.set(0,2,5);
+enemy.position.set(10,1,10);
+gameOver=false;
+document.getElementById("retry").style.display="none";
+document.getElementById("message").innerText="Find the Exit. Do Not Let It See You.";
+}
+
+document.getElementById("retry").onclick=resetGame;
+
+function animate(){
+requestAnimationFrame(animate);
+
+if(!gameOver){
+
+if(keys["KeyW"]) camera.translateZ(-0.1);
+if(keys["KeyS"]) camera.translateZ(0.1);
+if(keys["KeyA"]) camera.translateX(-0.1);
+if(keys["KeyD"]) camera.translateX(0.1);
+
+light.position.copy(camera.position);
+light.target.position.set(
+camera.position.x,
+camera.position.y,
+camera.position.z-5
+);
+
+let dx=camera.position.x-enemy.position.x;
+let dz=camera.position.z-enemy.position.z;
+let dist=Math.sqrt(dx*dx+dz*dz);
+
+enemy.position.x+=dx/dist*0.02;
+enemy.position.z+=dz/dist*0.02;
+
+if(dist<1.5){
+gameOver=true;
+document.getElementById("message").innerText="YOU WERE CAUGHT";
+document.getElementById("retry").style.display="block";
+}
+
+if(camera.position.z<-20){
+gameOver=true;
+document.getElementById("message").innerText="YOU ESCAPED";
+document.getElementById("retry").style.display="block";
+}
+
+}
+
+renderer.render(scene,camera);
+}
+
+animate();
+</script>
+</body>
+</html>
