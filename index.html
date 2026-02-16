@@ -46,6 +46,9 @@ camera.position.set(0,2,50);
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMappingExposure = 1.5;
+
 
 // 明るいライト
 const light = new THREE.DirectionalLight(0xffffff, 2);
@@ -58,7 +61,9 @@ scene.add(ambient);
 
 // 床
 const floorGeometry = new THREE.PlaneGeometry(50, 50);
-const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
+const floorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x888888
+})
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
@@ -66,7 +71,10 @@ scene.add(floor);
 
 // 広い地面
 const floorGeometry = new THREE.PlaneGeometry(300,300);
-const floorMaterial = new THREE.MeshStandardMaterial({color:0x1a1a1a});
+const floorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x888888
+})
+
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI/2;
 scene.add(floor);
@@ -82,14 +90,20 @@ scene.add(flashlight.target);
 
 // 敵
 const enemyGeometry = new THREE.BoxGeometry(3,6,3);
-const enemyMaterial = new THREE.MeshStandardMaterial({color:0xffffff});
+const enemyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x888888
+})
+
 const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
 enemy.position.set(0,3,-80);
 scene.add(enemy);
 
 // 出口
 const exitGeometry = new THREE.BoxGeometry(10,10,2);
-const exitMaterial = new THREE.MeshStandardMaterial({color:0x00ff00});
+const exitMaterial = new THREE.MeshStandardMaterial({
+    color: 0x888888
+})
+
 const exitDoor = new THREE.Mesh(exitGeometry, exitMaterial);
 exitDoor.position.set(0,5,-140);
 scene.add(exitDoor);
