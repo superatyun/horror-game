@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Midwest Motel - 1998</title>
+<title>Midwest Escape 1998</title>
 <style>
 body { margin:0; overflow:hidden; background:black; }
 #ui {
@@ -14,7 +14,7 @@ font-family:monospace;
 z-index:10;
 }
 button {
-padding:10px;
+padding:8px;
 background:black;
 color:white;
 border:1px solid white;
@@ -25,55 +25,68 @@ cursor:pointer;
 <body>
 
 <div id="ui">
-<div id="message">Find the Exit. Do Not Let It See You.</div>
+<div id="message">Find the EXIT sign</div>
 <button id="retry" style="display:none;">Retry</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
 
 <script>
-let scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x000000, 5, 25);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+scene.fog = new THREE.Fog(0x000000, 20, 120);
 
-let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-let renderer = new THREE.WebGLRenderer();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0,2,50);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-let floorGeo = new THREE.PlaneGeometry(50,50);
-let floorMat = new THREE.MeshStandardMaterial({color:0x222222});
-let floor = new THREE.Mesh(floorGeo,floorMat);
+// 広い地面
+const floorGeometry = new THREE.PlaneGeometry(300,300);
+const floorMaterial = new THREE.MeshStandardMaterial({color:0x1a1a1a});
+const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI/2;
 scene.add(floor);
 
-let light = new THREE.SpotLight(0xffffff,3,20,Math.PI/6,0.5);
-light.position.set(0,5,0);
-scene.add(light);
-scene.add(light.target);
-
-let ambient = new THREE.AmbientLight(0x111111);
+// 環境光（少し明るく）
+const ambient = new THREE.AmbientLight(0x505050);
 scene.add(ambient);
 
-let enemyGeo = new THREE.BoxGeometry(1,2,1);
-let enemyMat = new THREE.MeshStandardMaterial({color:0x000000});
-let enemy = new THREE.Mesh(enemyGeo,enemyMat);
-enemy.position.set(10,1,10);
+// 懐中電灯
+const flashlight = new THREE.SpotLight(0xffffff,6,80,Math.PI/7,0.5);
+scene.add(flashlight);
+scene.add(flashlight.target);
+
+// 敵
+const enemyGeometry = new THREE.BoxGeometry(3,6,3);
+const enemyMaterial = new THREE.MeshStandardMaterial({color:0xffffff});
+const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+enemy.position.set(0,3,-80);
 scene.add(enemy);
 
-camera.position.set(0,2,5);
+// 出口
+const exitGeometry = new THREE.BoxGeometry(10,10,2);
+const exitMaterial = new THREE.MeshStandardMaterial({color:0x00ff00});
+const exitDoor = new THREE.Mesh(exitGeometry, exitMaterial);
+exitDoor.position.set(0,5,-140);
+scene.add(exitDoor);
 
 let keys = {};
 document.addEventListener("keydown", e=>keys[e.code]=true);
 document.addEventListener("keyup", e=>keys[e.code]=false);
 
 let gameOver=false;
+let enemySpeed=0.03;
 
 function resetGame(){
-camera.position.set(0,2,5);
-enemy.position.set(10,1,10);
+camera.position.set(0,2,50);
+enemy.position.set(0,3,-80);
+enemySpeed=0.03;
 gameOver=false;
 document.getElementById("retry").style.display="none";
-document.getElementById("message").innerText="Find the Exit. Do Not Let It See You.";
+document.getElementById("message").innerText="Find the EXIT sign";
 }
 
 document.getElementById("retry").onclick=resetGame;
@@ -83,32 +96,45 @@ requestAnimationFrame(animate);
 
 if(!gameOver){
 
-if(keys["KeyW"]) camera.translateZ(-0.1);
-if(keys["KeyS"]) camera.translateZ(0.1);
-if(keys["KeyA"]) camera.translateX(-0.1);
-if(keys["KeyD"]) camera.translateX(0.1);
+let moveSpeed = keys["ShiftLeft"] ? 0.6 : 0.3;
 
-light.position.copy(camera.position);
-light.target.position.set(
+if(keys["KeyW"]) camera.position.z -= moveSpeed;
+if(keys["KeyS"]) camera.position.z += moveSpeed;
+if(keys["KeyA"]) camera.position.x -= moveSpeed;
+if(keys["KeyD"]) camera.position.x += moveSpeed;
+
+// ライト追従
+flashlight.position.copy(camera.position);
+flashlight.target.position.set(
 camera.position.x,
 camera.position.y,
-camera.position.z-5
+camera.position.z - 10
 );
 
-let dx=camera.position.x-enemy.position.x;
-let dz=camera.position.z-enemy.position.z;
-let dist=Math.sqrt(dx*dx+dz*dz);
+// 敵追跡
+let dx = camera.position.x - enemy.position.x;
+let dz = camera.position.z - enemy.position.z;
+let dist = Math.sqrt(dx*dx + dz*dz);
 
-enemy.position.x+=dx/dist*0.02;
-enemy.position.z+=dz/dist*0.02;
+enemy.position.x += dx/dist * enemySpeed;
+enemy.position.z += dz/dist * enemySpeed;
 
-if(dist<1.5){
+// 徐々に速くなる
+enemySpeed += 0.00002;
+
+if(dist < 5){
 gameOver=true;
 document.getElementById("message").innerText="YOU WERE CAUGHT";
 document.getElementById("retry").style.display="block";
 }
 
-if(camera.position.z<-20){
+// 脱出判定
+let exitDist = Math.sqrt(
+(camera.position.x - exitDoor.position.x)**2 +
+(camera.position.z - exitDoor.position.z)**2
+);
+
+if(exitDist < 10){
 gameOver=true;
 document.getElementById("message").innerText="YOU ESCAPED";
 document.getElementById("retry").style.display="block";
@@ -118,6 +144,11 @@ document.getElementById("retry").style.display="block";
 
 renderer.render(scene,camera);
 }
+
+animate();
+</script>
+</body>
+</html>
 
 animate();
 </script>
