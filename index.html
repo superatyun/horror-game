@@ -1,273 +1,194 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Midwest Escape 1998</title>
+<title>Horror House</title>
 <style>
-body { margin:0; overflow:hidden; background:black; cursor:crosshair; }
-#ui{
-position:absolute;
-top:20px;
-left:20px;
-color:white;
-font-family:monospace;
-background:rgba(0,0,0,0.6);
-padding:12px;
-}
-button{
-margin-top:8px;
-padding:6px 10px;
-background:black;
-color:white;
-border:1px solid white;
-cursor:pointer;
+body { margin: 0; overflow: hidden; }
+#info {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  font-family: sans-serif;
 }
 </style>
 </head>
 <body>
+<div id="info">WASD移動 / マウス視点 / Rで振り向く</div>
 
-<div id="ui">
-<div id="message">CLICK TO START – F = FLASHLIGHT</div>
-<button id="retry" style="display:none;">RETRY</button>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
 <script>
-
-// ===== シーン =====
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000008);
-scene.fog = new THREE.Fog(0x000008, 15, 100);
+scene.background = new THREE.Color(0x87CEEB); // 青空
 
-// ===== カメラ =====
-const camera = new THREE.PerspectiveCamera(
-75,
-window.innerWidth/window.innerHeight,
-0.1,
-1000
-);
-camera.position.set(0,6,10);
-
-// ===== レンダラー =====
-const renderer = new THREE.WebGLRenderer({antialias:true});
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// ===== ライト =====
-const moon = new THREE.DirectionalLight(0x6666aa, 1);
-moon.position.set(50,100,50);
-scene.add(moon);
+// ライト
+const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+scene.add(light);
 
-const ambient = new THREE.AmbientLight(0x202020,1);
-scene.add(ambient);
+// ===== 床（室内） =====
+const floorGeo = new THREE.PlaneGeometry(40, 40);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
 
-// ===== 地面 =====
-const roadGeo = new THREE.PlaneGeometry(400,400);
-const roadMat = new THREE.MeshStandardMaterial({color:0x111111});
-const road = new THREE.Mesh(roadGeo,roadMat);
-road.rotation.x = -Math.PI/2;
-scene.add(road);
+// ===== 草原（外） =====
+const grassGeo = new THREE.PlaneGeometry(200, 200, 50, 50);
+grassGeo.attributes.position.array.forEach((v, i) => {
+  if (i % 3 === 2) grassGeo.attributes.position.array[i] += Math.random() * 2;
+});
+grassGeo.computeVertexNormals();
+const grassMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+const grass = new THREE.Mesh(grassGeo, grassMat);
+grass.rotation.x = -Math.PI / 2;
+grass.position.y = -1;
+grass.position.z = -100;
+scene.add(grass);
 
-// ===== 建物 + 当たり判定 =====
-let colliders = [];
+// ===== 壁 =====
+const walls = [];
 
-function createBuilding(x,z){
-const geo = new THREE.BoxGeometry(25,20,25);
-const mat = new THREE.MeshStandardMaterial({color:0x444466});
-const mesh = new THREE.Mesh(geo,mat);
-mesh.position.set(x,10,z);
-scene.add(mesh);
-
-// 当たり判定用ボックス
-const box = new THREE.Box3().setFromObject(mesh);
-colliders.push(box);
+function createWall(x, z, w, h, d) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+  const wall = new THREE.Mesh(geo, mat);
+  wall.position.set(x, h/2, z);
+  scene.add(wall);
+  walls.push(wall);
 }
 
-// 密集配置
-for(let z=-20; z>-200; z-=30){
-createBuilding(-40,z);
-createBuilding(40,z);
-}
+createWall(0, -20, 40, 10, 1);
+createWall(-20, 0, 1, 10, 40);
+createWall(20, 0, 1, 10, 40);
+createWall(0, 20, 40, 10, 1);
 
-// ===== 街灯 =====
-for(let z=-20; z>-200; z-=40){
+// ===== 2階床 =====
+const secondFloor = new THREE.Mesh(
+  new THREE.PlaneGeometry(30, 30),
+  new THREE.MeshStandardMaterial({ color: 0x666666 })
+);
+secondFloor.rotation.x = -Math.PI/2;
+secondFloor.position.y = 5;
+scene.add(secondFloor);
 
-const poleGeo = new THREE.CylinderGeometry(0.3,0.3,12);
-const poleMat = new THREE.MeshStandardMaterial({color:0xaaaaaa});
-const pole = new THREE.Mesh(poleGeo,poleMat);
-pole.position.set(0,6,z);
-scene.add(pole);
+// ===== 玄関ドア =====
+const door = new THREE.Mesh(
+  new THREE.BoxGeometry(4, 7, 0.5),
+  new THREE.MeshStandardMaterial({ color: 0x442200 })
+);
+door.position.set(0, 3.5, -19.5);
+scene.add(door);
 
-const streetLight = new THREE.PointLight(0xffddaa,2,40);
-streetLight.position.set(0,12,z);
-scene.add(streetLight);
-}
-
-// ===== プレイヤー =====
-const player = new THREE.Group();
-player.position.set(0,0,0);
-scene.add(player);
-
-// ===== 敵（下半身）=====
+// ===== 敵 =====
 const enemy = new THREE.Group();
-const legGeo = new THREE.CylinderGeometry(0.5,0.5,4,12);
-const legMat = new THREE.MeshStandardMaterial({color:0x110000});
-const leg1 = new THREE.Mesh(legGeo,legMat);
-leg1.position.set(-0.6,2,0);
-enemy.add(leg1);
-const leg2 = leg1.clone();
-leg2.position.x=0.6;
-enemy.add(leg2);
-enemy.position.set(0,0,-60);
+
+// 下半身
+const legs = new THREE.Mesh(
+  new THREE.BoxGeometry(2,3,2),
+  new THREE.MeshStandardMaterial({ color: 0x880000 })
+);
+legs.position.y = 1.5;
+enemy.add(legs);
+
+// 胴体
+const body = new THREE.Mesh(
+  new THREE.BoxGeometry(2,3,1.5),
+  new THREE.MeshStandardMaterial({ color: 0xaa0000 })
+);
+body.position.y = 4;
+enemy.add(body);
+
+// 顔
+const face = new THREE.Mesh(
+  new THREE.BoxGeometry(2,2,1.5),
+  new THREE.MeshStandardMaterial({ color: 0xcc0000 })
+);
+face.position.y = 6;
+enemy.add(face);
+
+// 目
+const eyeGeo = new THREE.SphereGeometry(0.3);
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+const eye1 = new THREE.Mesh(eyeGeo, eyeMat);
+eye1.position.set(-0.5,6.3,0.8);
+scene.add(eye1);
+
+const eye2 = new THREE.Mesh(eyeGeo, eyeMat);
+eye2.position.set(0.5,6.3,0.8);
+scene.add(eye2);
+
+enemy.position.set(10,0,10);
 scene.add(enemy);
 
-// ===== EXIT =====
-const exitGeo = new THREE.BoxGeometry(10,6,2);
-const exitMat = new THREE.MeshStandardMaterial({color:0x00ff00});
-const exit = new THREE.Mesh(exitGeo,exitMat);
-exit.position.set(0,4,-220);
-scene.add(exit);
+// ===== カメラ =====
+camera.position.set(0, 2, 10);
 
-// ===== 懐中電灯 =====
-const flashlight = new THREE.SpotLight(0xffffff,4,50,Math.PI/6,0.5);
-scene.add(flashlight);
-scene.add(flashlight.target);
-let flashlightOn=true;
+// ===== 操作 =====
+const keys = {};
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-// ===== 視点制御 =====
-let yaw=0;
-let pitch=0;
-let pointerLocked=false;
-
-document.body.addEventListener("click",()=>{
-renderer.domElement.requestPointerLock();
+// 振り向き
+document.addEventListener("keydown", e => {
+  if (e.key.toLowerCase() === "r") {
+    camera.rotation.y += Math.PI;
+  }
 });
 
-document.addEventListener("pointerlockchange",()=>{
-pointerLocked=document.pointerLockElement===renderer.domElement;
+// マウス視点
+document.addEventListener("mousemove", e => {
+  camera.rotation.y -= e.movementX * 0.002;
+  camera.rotation.x -= e.movementY * 0.002;
 });
 
-document.addEventListener("mousemove",(e)=>{
-if(pointerLocked){
-yaw -= e.movementX * 0.002;
-pitch -= e.movementY * 0.002;
-pitch = Math.max(-1.5,Math.min(1.5,pitch));
-}
-});
-
-// ===== 入力 =====
-let keys={};
-document.addEventListener("keydown",e=>{
-keys[e.code]=true;
-if(e.code==="KeyF"){
-flashlightOn=!flashlightOn;
-flashlight.intensity = flashlightOn ? 4 : 0;
-}
-});
-document.addEventListener("keyup",e=>keys[e.code]=false);
-
-let gameOver=false;
-let enemySpeed=0.05;
-
-// ===== ループ =====
-function animate(){
-requestAnimationFrame(animate);
-
-if(!gameOver){
-
-let dirX=Math.sin(yaw);
-let dirZ=Math.cos(yaw);
-
-let newX=player.position.x;
-let newZ=player.position.z;
-
-if(keys["KeyW"]){
-newX+=dirX*0.4;
-newZ+=dirZ*0.4;
-}
-if(keys["KeyS"]){
-newX-=dirX*0.4;
-newZ-=dirZ*0.4;
-}
-if(keys["KeyA"]){
-newX+=dirZ*0.4;
-newZ-=dirX*0.4;
-}
-if(keys["KeyD"]){
-newX-=dirZ*0.4;
-newZ+=dirX*0.4;
+// ===== 当たり判定 =====
+function checkCollision(newPos) {
+  for (let wall of walls) {
+    if (Math.abs(newPos.x - wall.position.x) < 2 &&
+        Math.abs(newPos.z - wall.position.z) < 2) {
+      return true;
+    }
+  }
+  return false;
 }
 
-// 当たり判定
-let playerBox = new THREE.Box3(
-new THREE.Vector3(newX-1,0,newZ-1),
-new THREE.Vector3(newX+1,6,newZ+1)
-);
+// ===== アニメーション =====
+function animate() {
+  requestAnimationFrame(animate);
 
-let collision=false;
-for(let box of colliders){
-if(playerBox.intersectsBox(box)){
-collision=true;
-break;
-}
-}
+  let newPos = camera.position.clone();
 
-if(!collision){
-player.position.x=newX;
-player.position.z=newZ;
-}
+  if (keys["w"]) newPos.z -= 0.2;
+  if (keys["s"]) newPos.z += 0.2;
+  if (keys["a"]) newPos.x -= 0.2;
+  if (keys["d"]) newPos.x += 0.2;
 
-// カメラ
-camera.position.set(
-player.position.x,
-player.position.y+6,
-player.position.z
-);
-camera.rotation.order="YXZ";
-camera.rotation.y=yaw;
-camera.rotation.x=pitch;
+  if (!checkCollision(newPos)) {
+    camera.position.copy(newPos);
+  }
 
-// 懐中電灯
-flashlight.position.copy(camera.position);
-flashlight.target.position.set(
-camera.position.x+dirX*10,
-camera.position.y,
-camera.position.z+dirZ*10
-);
+  // 敵追跡
+  enemy.lookAt(camera.position);
+  enemy.position.x += (camera.position.x - enemy.position.x) * 0.002;
+  enemy.position.z += (camera.position.z - enemy.position.z) * 0.002;
 
-// 敵追跡
-let dx=player.position.x-enemy.position.x;
-let dz=player.position.z-enemy.position.z;
-let dist=Math.sqrt(dx*dx+dz*dz);
+  // ゴール判定
+  if (camera.position.distanceTo(door.position) < 3) {
+    alert("脱出成功！");
+    location.reload();
+  }
 
-enemy.position.x+=dx/dist*enemySpeed;
-enemy.position.z+=dz/dist*enemySpeed;
-
-if(dist<3){
-gameOver=true;
-document.getElementById("message").innerText="YOU WERE CAUGHT";
-document.getElementById("retry").style.display="block";
-}
-
-let exitDist=Math.sqrt(
-(player.position.x-exit.position.x)**2+
-(player.position.z-exit.position.z)**2
-);
-
-if(exitDist<8){
-gameOver=true;
-document.getElementById("message").innerText="YOU ESCAPED";
-document.getElementById("retry").style.display="block";
-}
-
-}
-
-renderer.render(scene,camera);
+  renderer.render(scene, camera);
 }
 
 animate();
-
 </script>
 </body>
 </html>
