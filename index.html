@@ -38,7 +38,7 @@ cursor:pointer;
 <script>
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111111);
-scene.fog = new THREE.Fog(0x000000, 20, 120);
+// scene.fog = new THREE.Fog(0x000000, 20, 120);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(0,2,50);
@@ -60,7 +60,6 @@ scene.add(ambient);
 
 
 // 床
-const floorGeometry = new THREE.PlaneGeometry(50, 50);
 const floorMaterial = new THREE.MeshStandardMaterial({
     color: 0x888888
 })
