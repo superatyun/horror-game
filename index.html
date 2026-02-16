@@ -48,9 +48,13 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // 明るいライト
-const light = new THREE.DirectionalLight(0xffffff, 1);
+const light = new THREE.DirectionalLight(0xffffff, 2);
 light.position.set(5, 10, 7);
 scene.add(light);
+
+const ambient = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambient);
+
 
 // 床
 const floorGeometry = new THREE.PlaneGeometry(50, 50);
