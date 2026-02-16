@@ -12,20 +12,33 @@ left:20px;
 color:white;
 font-family:monospace;
 background:rgba(0,0,0,0.6);
-padding:10px;
+padding:12px;
+}
+button{
+margin-top:8px;
+padding:6px 10px;
+background:black;
+color:white;
+border:1px solid white;
+cursor:pointer;
 }
 </style>
 </head>
 <body>
 
-<div id="ui">ESCAPE THE STREET</div>
+<div id="ui">
+<div id="message">ESCAPE THE NEIGHBORHOOD</div>
+<button id="retry" style="display:none;">RETRY</button>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
 
 <script>
 
+// ===== 基本設定 =====
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050510); // 夜空色
+scene.background = new THREE.Color(0x050510);
+scene.fog = new THREE.Fog(0x050510, 30, 220);
 
 const camera = new THREE.PerspectiveCamera(
 75,
@@ -39,87 +52,103 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// 月明かり
+// ===== ライト =====
 const moon = new THREE.DirectionalLight(0x8899ff, 1.5);
 moon.position.set(50,100,50);
 scene.add(moon);
 
-// うっすら環境光
-const ambient = new THREE.AmbientLight(0x404040,0.6);
+const ambient = new THREE.AmbientLight(0x404040,0.7);
 scene.add(ambient);
 
-// アスファルト
-const roadGeo = new THREE.PlaneGeometry(200,200);
-const roadMat = new THREE.MeshStandardMaterial({
-color: 0x222222
-});
+// ===== 地面 =====
+const roadGeo = new THREE.PlaneGeometry(400,400);
+const roadMat = new THREE.MeshStandardMaterial({color:0x222222});
 const road = new THREE.Mesh(roadGeo,roadMat);
 road.rotation.x = -Math.PI/2;
 scene.add(road);
 
-// 街灯
-for(let i=-80;i<=80;i+=40){
-const poleGeo = new THREE.CylinderGeometry(0.3,0.3,10);
+// ===== 街灯 =====
+for(let i=-120;i<=120;i+=60){
+
+// ポール
+const poleGeo = new THREE.CylinderGeometry(0.3,0.3,12);
 const poleMat = new THREE.MeshStandardMaterial({color:0xaaaaaa});
 const pole = new THREE.Mesh(poleGeo,poleMat);
-pole.position.set(i,5,-30);
+pole.position.set(i,6,-40);
 scene.add(pole);
 
-const light = new THREE.PointLight(0xffddaa,2,30);
-light.position.set(i,10,-30);
-scene.add(light);
+// ライト
+const streetLight = new THREE.PointLight(0xffddaa,2.5,40);
+streetLight.position.set(i,12,-40);
+scene.add(streetLight);
 }
 
-// 家
-for(let i=-80;i<=80;i+=40){
-const houseGeo = new THREE.BoxGeometry(15,10,15);
-const houseMat = new THREE.MeshStandardMaterial({color:0x444466});
+// ===== 家 =====
+for(let i=-120;i<=120;i+=60){
+const houseGeo = new THREE.BoxGeometry(20,12,20);
+const houseMat = new THREE.MeshStandardMaterial({color:0x333355});
 const house = new THREE.Mesh(houseGeo,houseMat);
-house.position.set(i,5,-80);
+house.position.set(i,6,-120);
 scene.add(house);
 }
 
-// プレイヤー
+// ===== プレイヤー =====
 const playerGeo = new THREE.BoxGeometry(2,4,2);
 const playerMat = new THREE.MeshStandardMaterial({color:0xffffff});
 const player = new THREE.Mesh(playerGeo,playerMat);
 player.position.y = 2;
 scene.add(player);
 
-// 敵
+// ===== 敵 =====
 const enemyGeo = new THREE.BoxGeometry(3,6,3);
-const enemyMat = new THREE.MeshStandardMaterial({color:0x550000});
+const enemyMat = new THREE.MeshStandardMaterial({color:0x220000});
 const enemy = new THREE.Mesh(enemyGeo,enemyMat);
 enemy.position.set(0,3,-80);
 scene.add(enemy);
-  
-// EXIT
-const exitGeo = new THREE.BoxGeometry(10,5,2);
+
+// ===== EXIT =====
+const exitGeo = new THREE.BoxGeometry(12,6,2);
 const exitMat = new THREE.MeshStandardMaterial({color:0x00ff00});
 const exit = new THREE.Mesh(exitGeo,exitMat);
-exit.position.set(0,3,-150);
+exit.position.set(0,4,-200);
 scene.add(exit);
 
-// 懐中電灯
-const flashlight = new THREE.SpotLight(0xffffff,5,50,Math.PI/6,0.5);
+// ===== 懐中電灯 =====
+const flashlight = new THREE.SpotLight(0xffffff,5,60,Math.PI/6,0.5);
 scene.add(flashlight);
 scene.add(flashlight.target);
 
+// ===== 操作 =====
 let keys = {};
 document.addEventListener("keydown", e=>keys[e.code]=true);
 document.addEventListener("keyup", e=>keys[e.code]=false);
 
 let gameOver=false;
+let enemySpeed=0.06;
 
+// ===== リセット =====
+function resetGame(){
+player.position.set(0,2,0);
+enemy.position.set(0,3,-80);
+enemySpeed=0.06;
+gameOver=false;
+document.getElementById("retry").style.display="none";
+document.getElementById("message").innerText="ESCAPE THE NEIGHBORHOOD";
+}
+
+document.getElementById("retry").onclick=resetGame;
+
+// ===== ゲームループ =====
 function animate(){
 requestAnimationFrame(animate);
 
 if(!gameOver){
 
-if(keys["KeyW"]) player.position.z -= 0.4;
-if(keys["KeyS"]) player.position.z += 0.4;
-if(keys["KeyA"]) player.position.x -= 0.4;
-if(keys["KeyD"]) player.position.x += 0.4;
+// 移動
+if(keys["KeyW"]) player.position.z -= 0.5;
+if(keys["KeyS"]) player.position.z += 0.5;
+if(keys["KeyA"]) player.position.x -= 0.5;
+if(keys["KeyD"]) player.position.x += 0.5;
 
 // カメラ追従
 camera.position.x = player.position.x;
@@ -140,12 +169,28 @@ let dx = player.position.x - enemy.position.x;
 let dz = player.position.z - enemy.position.z;
 let dist = Math.sqrt(dx*dx + dz*dz);
 
-enemy.position.x += dx/dist * 0.05;
-enemy.position.z += dz/dist * 0.05;
+enemy.position.x += dx/dist * enemySpeed;
+enemy.position.z += dz/dist * enemySpeed;
 
+enemySpeed += 0.00005;
+
+// 捕まる
 if(dist < 4){
 gameOver=true;
-document.getElementById("ui").innerHTML="YOU WERE CAUGHT";
+document.getElementById("message").innerText="YOU WERE CAUGHT";
+document.getElementById("retry").style.display="block";
+}
+
+// 脱出判定
+let exitDist = Math.sqrt(
+(player.position.x - exit.position.x)**2 +
+(player.position.z - exit.position.z)**2
+);
+
+if(exitDist < 8){
+gameOver=true;
+document.getElementById("message").innerText="YOU ESCAPED";
+document.getElementById("retry").style.display="block";
 }
 
 }
