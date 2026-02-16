@@ -70,6 +70,15 @@ light.position.set(i,10,-30);
 scene.add(light);
 }
 
+// 家
+for(let i=-80;i<=80;i+=40){
+const houseGeo = new THREE.BoxGeometry(15,10,15);
+const houseMat = new THREE.MeshStandardMaterial({color:0x444466});
+const house = new THREE.Mesh(houseGeo,houseMat);
+house.position.set(i,5,-80);
+scene.add(house);
+}
+
 // プレイヤー
 const playerGeo = new THREE.BoxGeometry(2,4,2);
 const playerMat = new THREE.MeshStandardMaterial({color:0xffffff});
@@ -83,6 +92,13 @@ const enemyMat = new THREE.MeshStandardMaterial({color:0x550000});
 const enemy = new THREE.Mesh(enemyGeo,enemyMat);
 enemy.position.set(0,3,-80);
 scene.add(enemy);
+  
+// EXIT
+const exitGeo = new THREE.BoxGeometry(10,5,2);
+const exitMat = new THREE.MeshStandardMaterial({color:0x00ff00});
+const exit = new THREE.Mesh(exitGeo,exitMat);
+exit.position.set(0,3,-150);
+scene.add(exit);
 
 // 懐中電灯
 const flashlight = new THREE.SpotLight(0xffffff,5,50,Math.PI/6,0.5);
