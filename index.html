@@ -27,7 +27,7 @@ cursor:pointer;
 <body>
 
 <div id="ui">
-<div id="message">CLICK TO START – ESCAPE</div>
+<div id="message">CLICK TO START – F = FLASHLIGHT</div>
 <button id="retry" style="display:none;">RETRY</button>
 </div>
 
@@ -37,8 +37,8 @@ cursor:pointer;
 
 // ===== シーン =====
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x04040a);
-scene.fog = new THREE.Fog(0x04040a, 20, 120);
+scene.background = new THREE.Color(0x000008);
+scene.fog = new THREE.Fog(0x000008, 15, 100);
 
 // ===== カメラ =====
 const camera = new THREE.PerspectiveCamera(
@@ -47,7 +47,7 @@ window.innerWidth/window.innerHeight,
 0.1,
 1000
 );
-camera.position.set(0,5,10);
+camera.position.set(0,6,10);
 
 // ===== レンダラー =====
 const renderer = new THREE.WebGLRenderer({antialias:true});
@@ -55,77 +55,70 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // ===== ライト =====
-const moon = new THREE.DirectionalLight(0x8899ff, 1.2);
+const moon = new THREE.DirectionalLight(0x6666aa, 1);
 moon.position.set(50,100,50);
 scene.add(moon);
 
-const ambient = new THREE.AmbientLight(0x303030,0.8);
+const ambient = new THREE.AmbientLight(0x202020,1);
 scene.add(ambient);
 
 // ===== 地面 =====
 const roadGeo = new THREE.PlaneGeometry(400,400);
-const roadMat = new THREE.MeshStandardMaterial({color:0x1a1a1a});
+const roadMat = new THREE.MeshStandardMaterial({color:0x111111});
 const road = new THREE.Mesh(roadGeo,roadMat);
 road.rotation.x = -Math.PI/2;
 scene.add(road);
 
-// ===== 建物密集 =====
+// ===== 建物 + 当たり判定 =====
+let colliders = [];
+
+function createBuilding(x,z){
+const geo = new THREE.BoxGeometry(25,20,25);
+const mat = new THREE.MeshStandardMaterial({color:0x444466});
+const mesh = new THREE.Mesh(geo,mat);
+mesh.position.set(x,10,z);
+scene.add(mesh);
+
+// 当たり判定用ボックス
+const box = new THREE.Box3().setFromObject(mesh);
+colliders.push(box);
+}
+
+// 密集配置
 for(let z=-20; z>-200; z-=30){
-for(let x=-40; x<=40; x+=40){
-const houseGeo = new THREE.BoxGeometry(25,15,25);
-const houseMat = new THREE.MeshStandardMaterial({color:0x2a2a3a});
-const house = new THREE.Mesh(houseGeo,houseMat);
-house.position.set(x,7.5,z);
-scene.add(house);
-}
+createBuilding(-40,z);
+createBuilding(40,z);
 }
 
-// ===== プレイヤー（人型）=====
+// ===== 街灯 =====
+for(let z=-20; z>-200; z-=40){
+
+const poleGeo = new THREE.CylinderGeometry(0.3,0.3,12);
+const poleMat = new THREE.MeshStandardMaterial({color:0xaaaaaa});
+const pole = new THREE.Mesh(poleGeo,poleMat);
+pole.position.set(0,6,z);
+scene.add(pole);
+
+const streetLight = new THREE.PointLight(0xffddaa,2,40);
+streetLight.position.set(0,12,z);
+scene.add(streetLight);
+}
+
+// ===== プレイヤー =====
 const player = new THREE.Group();
-
-// 体
-const body = new THREE.Mesh(
-new THREE.CylinderGeometry(1,1,4,16),
-new THREE.MeshStandardMaterial({color:0xcccccc})
-);
-body.position.y=2;
-player.add(body);
-
-// 頭
-const head = new THREE.Mesh(
-new THREE.SphereGeometry(1.2,16,16),
-new THREE.MeshStandardMaterial({color:0xffe0bd})
-);
-head.position.y=4.5;
-player.add(head);
-
 player.position.set(0,0,0);
 scene.add(player);
 
-// ===== 敵（下半身だけ）=====
+// ===== 敵（下半身）=====
 const enemy = new THREE.Group();
-
-// 腰
-const torso = new THREE.Mesh(
-new THREE.CylinderGeometry(1.2,1.2,3,16),
-new THREE.MeshStandardMaterial({color:0x220000})
-);
-torso.position.y=3;
-enemy.add(torso);
-
-// 足1
-const leg1 = new THREE.Mesh(
-new THREE.CylinderGeometry(0.5,0.5,4,12),
-new THREE.MeshStandardMaterial({color:0x110000})
-);
-leg1.position.set(-0.5,1,0);
+const legGeo = new THREE.CylinderGeometry(0.5,0.5,4,12);
+const legMat = new THREE.MeshStandardMaterial({color:0x110000});
+const leg1 = new THREE.Mesh(legGeo,legMat);
+leg1.position.set(-0.6,2,0);
 enemy.add(leg1);
-
-// 足2
 const leg2 = leg1.clone();
-leg2.position.x=0.5;
+leg2.position.x=0.6;
 enemy.add(leg2);
-
 enemy.position.set(0,0,-60);
 scene.add(enemy);
 
@@ -136,7 +129,13 @@ const exit = new THREE.Mesh(exitGeo,exitMat);
 exit.position.set(0,4,-220);
 scene.add(exit);
 
-// ===== マウス視点制御 =====
+// ===== 懐中電灯 =====
+const flashlight = new THREE.SpotLight(0xffffff,4,50,Math.PI/6,0.5);
+scene.add(flashlight);
+scene.add(flashlight.target);
+let flashlightOn=true;
+
+// ===== 視点制御 =====
 let yaw=0;
 let pitch=0;
 let pointerLocked=false;
@@ -157,24 +156,19 @@ pitch = Math.max(-1.5,Math.min(1.5,pitch));
 }
 });
 
-// ===== 操作 =====
+// ===== 入力 =====
 let keys={};
-document.addEventListener("keydown",e=>keys[e.code]=true);
+document.addEventListener("keydown",e=>{
+keys[e.code]=true;
+if(e.code==="KeyF"){
+flashlightOn=!flashlightOn;
+flashlight.intensity = flashlightOn ? 4 : 0;
+}
+});
 document.addEventListener("keyup",e=>keys[e.code]=false);
 
 let gameOver=false;
 let enemySpeed=0.05;
-
-function resetGame(){
-player.position.set(0,0,0);
-enemy.position.set(0,0,-60);
-enemySpeed=0.05;
-gameOver=false;
-document.getElementById("retry").style.display="none";
-document.getElementById("message").innerText="ESCAPE";
-}
-
-document.getElementById("retry").onclick=resetGame;
 
 // ===== ループ =====
 function animate(){
@@ -182,25 +176,46 @@ requestAnimationFrame(animate);
 
 if(!gameOver){
 
-// 移動
 let dirX=Math.sin(yaw);
 let dirZ=Math.cos(yaw);
 
+let newX=player.position.x;
+let newZ=player.position.z;
+
 if(keys["KeyW"]){
-player.position.x+=dirX*0.4;
-player.position.z+=dirZ*0.4;
+newX+=dirX*0.4;
+newZ+=dirZ*0.4;
 }
 if(keys["KeyS"]){
-player.position.x-=dirX*0.4;
-player.position.z-=dirZ*0.4;
+newX-=dirX*0.4;
+newZ-=dirZ*0.4;
 }
 if(keys["KeyA"]){
-player.position.x+=dirZ*0.4;
-player.position.z-=dirX*0.4;
+newX+=dirZ*0.4;
+newZ-=dirX*0.4;
 }
 if(keys["KeyD"]){
-player.position.x-=dirZ*0.4;
-player.position.z+=dirX*0.4;
+newX-=dirZ*0.4;
+newZ+=dirX*0.4;
+}
+
+// 当たり判定
+let playerBox = new THREE.Box3(
+new THREE.Vector3(newX-1,0,newZ-1),
+new THREE.Vector3(newX+1,6,newZ+1)
+);
+
+let collision=false;
+for(let box of colliders){
+if(playerBox.intersectsBox(box)){
+collision=true;
+break;
+}
+}
+
+if(!collision){
+player.position.x=newX;
+player.position.z=newZ;
 }
 
 // カメラ
@@ -209,10 +224,17 @@ player.position.x,
 player.position.y+6,
 player.position.z
 );
-
 camera.rotation.order="YXZ";
 camera.rotation.y=yaw;
 camera.rotation.x=pitch;
+
+// 懐中電灯
+flashlight.position.copy(camera.position);
+flashlight.target.position.set(
+camera.position.x+dirX*10,
+camera.position.y,
+camera.position.z+dirZ*10
+);
 
 // 敵追跡
 let dx=player.position.x-enemy.position.x;
@@ -221,9 +243,8 @@ let dist=Math.sqrt(dx*dx+dz*dz);
 
 enemy.position.x+=dx/dist*enemySpeed;
 enemy.position.z+=dz/dist*enemySpeed;
-enemySpeed+=0.00005;
 
-if(dist<4){
+if(dist<3){
 gameOver=true;
 document.getElementById("message").innerText="YOU WERE CAUGHT";
 document.getElementById("retry").style.display="block";
