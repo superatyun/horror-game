@@ -1,191 +1,120 @@
-<title>TEST123</title>
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Midwest Escape 1998</title>
+<title>Bright Test World</title>
 <style>
-body { margin:0; overflow:hidden; background:black; }
-#ui {
+body { margin:0; overflow:hidden; }
+#ui{
 position:absolute;
 top:20px;
 left:20px;
-color:white;
+color:black;
 font-family:monospace;
-z-index:10;
-}
-button {
-padding:8px;
-background:black;
-color:white;
-border:1px solid white;
-cursor:pointer;
+background:white;
+padding:10px;
 }
 </style>
 </head>
 <body>
-<h1 style="position:absolute; z-index:1000; color:white;">
-🔥 TEST 🔥
-</h1>
 
 <div id="ui">
-<div id="message">Find the EXIT sign</div>
-<button id="retry" style="display:none;">Retry</button>
+WASDで移動
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
 
 <script>
+
+// シーン
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111111);
-// scene.fog = new THREE.Fog(0x000000, 20, 120);
+scene.background = new THREE.Color(0x87ceeb); // 空色
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0,2,50);
-camera.lookAt(0, 0, 0);
+// カメラ
+const camera = new THREE.PerspectiveCamera(
+75,
+window.innerWidth/window.innerHeight,
+0.1,
+1000
+);
+camera.position.set(0,20,40);
+camera.lookAt(0,0,0);
 
+// レンダラー
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMappingExposure = 1.5;
 
+// 強い太陽光
+const sun = new THREE.DirectionalLight(0xffffff, 3);
+sun.position.set(50,100,50);
+scene.add(sun);
 
-// 明るいライト
-const light = new THREE.DirectionalLight(0xffffff, 2);
-light.position.set(5, 10, 7);
-scene.add(light);
-
+// 環境光
 const ambient = new THREE.AmbientLight(0xffffff, 1);
 scene.add(ambient);
 
-
-// 床
+// 地面
+const floorGeometry = new THREE.PlaneGeometry(200,200);
 const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x888888
-})
-const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-floor.rotation.x = -Math.PI / 2;
-scene.add(floor);
-
-
-// 広い地面
-const floorGeometry = new THREE.PlaneGeometry(300,300);
-const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x888888
-})
-
+color: 0x228B22
+});
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI/2;
 scene.add(floor);
 
-// 環境光（少し明るく）
-const ambient = new THREE.AmbientLight(0x888888);
-scene.add(ambient);
+// プレイヤー
+const playerGeometry = new THREE.BoxGeometry(3,3,3);
+const playerMaterial = new THREE.MeshStandardMaterial({
+color: 0xff0000
+});
+const player = new THREE.Mesh(playerGeometry, playerMaterial);
+player.position.y = 1.5;
+scene.add(player);
 
-// 懐中電灯
-const flashlight = new THREE.SpotLight(0xffffff,6,80,Math.PI/7,0.5);
-scene.add(flashlight);
-scene.add(flashlight.target);
+// 目標キューブ
+const targetGeometry = new THREE.BoxGeometry(5,5,5);
+const targetMaterial = new THREE.MeshStandardMaterial({
+color: 0x0000ff
+});
+const target = new THREE.Mesh(targetGeometry, targetMaterial);
+target.position.set(0,2.5,-50);
+scene.add(target);
 
-// 敵
-const enemyGeometry = new THREE.BoxGeometry(3,6,3);
-const enemyMaterial = new THREE.MeshStandardMaterial({
-    color: 0x888888
-})
-
-const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
-enemy.position.set(0,3,-80);
-scene.add(enemy);
-
-// 出口
-const exitGeometry = new THREE.BoxGeometry(10,10,2);
-const exitMaterial = new THREE.MeshStandardMaterial({
-    color: 0x888888
-})
-
-const exitDoor = new THREE.Mesh(exitGeometry, exitMaterial);
-exitDoor.position.set(0,5,-140);
-scene.add(exitDoor);
-
+// キー入力
 let keys = {};
 document.addEventListener("keydown", e=>keys[e.code]=true);
 document.addEventListener("keyup", e=>keys[e.code]=false);
 
-let gameOver=false;
-let enemySpeed=0.03;
-
-function resetGame(){
-camera.position.set(0,2,50);
-enemy.position.set(0,3,-80);
-enemySpeed=0.03;
-gameOver=false;
-document.getElementById("retry").style.display="none";
-document.getElementById("message").innerText="Find the EXIT sign";
-}
-
-document.getElementById("retry").onclick=resetGame;
-
+// アニメーション
 function animate(){
 requestAnimationFrame(animate);
 
-if(!gameOver){
+// 移動
+if(keys["KeyW"]) player.position.z -= 0.5;
+if(keys["KeyS"]) player.position.z += 0.5;
+if(keys["KeyA"]) player.position.x -= 0.5;
+if(keys["KeyD"]) player.position.x += 0.5;
 
-let moveSpeed = keys["ShiftLeft"] ? 0.6 : 0.3;
+// カメラ追従
+camera.position.x = player.position.x;
+camera.position.z = player.position.z + 40;
+camera.lookAt(player.position);
 
-if(keys["KeyW"]) camera.position.z -= moveSpeed;
-if(keys["KeyS"]) camera.position.z += moveSpeed;
-if(keys["KeyA"]) camera.position.x -= moveSpeed;
-if(keys["KeyD"]) camera.position.x += moveSpeed;
-
-// ライト追従
-flashlight.position.copy(camera.position);
-flashlight.target.position.set(
-camera.position.x,
-camera.position.y,
-camera.position.z - 10
-);
-
-// 敵追跡
-let dx = camera.position.x - enemy.position.x;
-let dz = camera.position.z - enemy.position.z;
-let dist = Math.sqrt(dx*dx + dz*dz);
-
-enemy.position.x += dx/dist * enemySpeed;
-enemy.position.z += dz/dist * enemySpeed;
-
-// 徐々に速くなる
-enemySpeed += 0.00002;
+// 当たり判定
+const dx = player.position.x - target.position.x;
+const dz = player.position.z - target.position.z;
+const dist = Math.sqrt(dx*dx + dz*dz);
 
 if(dist < 5){
-gameOver=true;
-document.getElementById("message").innerText="YOU WERE CAUGHT";
-document.getElementById("retry").style.display="block";
-}
-
-// 脱出判定
-let exitDist = Math.sqrt(
-(camera.position.x - exitDoor.position.x)**2 +
-(camera.position.z - exitDoor.position.z)**2
-);
-
-if(exitDist < 10){
-gameOver=true;
-document.getElementById("message").innerText="YOU ESCAPED";
-document.getElementById("retry").style.display="block";
-}
-
+document.getElementById("ui").innerHTML = "GOAL!";
 }
 
 renderer.render(scene,camera);
 }
 
 animate();
-</script>
-</body>
-</html>
 
-animate();
 </script>
 </body>
 </html>
