@@ -2,13 +2,14 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Japanese Evening Suburb</title>
+<title>夕暮れの路地裏</title>
 <style>
 body{margin:0;overflow:hidden;background:#ff8844;}
 #ui{
 position:absolute;
 top:10px;left:10px;
-color:white;font-family:sans-serif;
+color:white;
+font-family:sans-serif;
 }
 </style>
 </head>
@@ -23,7 +24,7 @@ color:white;font-family:sans-serif;
 //////////////////////////////////////////////////
 
 const scene=new THREE.Scene();
-scene.fog=new THREE.FogExp2(0xff8844,0.01);
+scene.fog=new THREE.FogExp2(0xff8844,0.02);
 
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,2000);
 camera.position.set(0,1.7,0);
@@ -33,7 +34,7 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.setClearColor(0xff8844);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffbb88,0.9));
+scene.add(new THREE.AmbientLight(0xffbb88,0.8));
 const sun=new THREE.DirectionalLight(0xff9966,0.8);
 sun.position.set(-100,80,50);
 scene.add(sun);
@@ -43,8 +44,8 @@ scene.add(sun);
 //////////////////////////////////////////////////
 
 const ground=new THREE.Mesh(
- new THREE.PlaneGeometry(1200,1200),
- new THREE.MeshStandardMaterial({color:0x666666})
+ new THREE.PlaneGeometry(800,800),
+ new THREE.MeshStandardMaterial({color:0x555555})
 );
 ground.rotation.x=-Math.PI/2;
 scene.add(ground);
@@ -69,77 +70,71 @@ function collide(pos){
 }
 
 //////////////////////////////////////////////////
-// 家（クラスター生成）
+// 密集住宅クラスター（路地型）
 //////////////////////////////////////////////////
 
 function createHouse(x,z){
- const base=new THREE.Mesh(
-  new THREE.BoxGeometry(7,6,7),
-  new THREE.MeshStandardMaterial({color:0xe0e0e0})
- );
- base.position.set(x,3,z);
- scene.add(base);
- addCollider(base);
 
+ const house=new THREE.Mesh(
+  new THREE.BoxGeometry(8,6,8),
+  new THREE.MeshStandardMaterial({color:0xdcdcdc})
+ );
+ house.position.set(x,3,z);
+ scene.add(house);
+ addCollider(house);
+
+ // 屋根
  const roof=new THREE.Mesh(
-  new THREE.ConeGeometry(6,4,4),
+  new THREE.ConeGeometry(7,3,4),
   new THREE.MeshStandardMaterial({color:0x333333})
  );
  roof.position.set(x,7,z);
  roof.rotation.y=Math.PI/4;
  scene.add(roof);
-
- const fence=new THREE.Mesh(
-  new THREE.BoxGeometry(8.5,1.5,8.5),
-  new THREE.MeshStandardMaterial({color:0x999999})
- );
- fence.position.set(x,0.75,z);
- scene.add(fence);
- addCollider(fence);
 }
 
-function createCluster(cx,cz){
- for(let x=-15;x<=15;x+=10){
-  for(let z=-15;z<=15;z+=10){
+// 路地生成
+function createAlleyBlock(cx,cz){
+
+ const gap=12; // 家の間隔（狭い）
+
+ for(let x=-30;x<=30;x+=gap){
+  for(let z=-30;z<=30;z+=gap){
+
+   // 中央に細い道を残す
+   if(Math.abs(x)<6 || Math.abs(z)<6) continue;
+
    createHouse(cx+x,cz+z);
   }
  }
 }
 
-// クラスターを複数ランダム配置
-for(let i=0;i<8;i++){
- let cx=(Math.random()-0.5)*800;
- let cz=(Math.random()-0.5)*800;
- if(Math.abs(cx)<50 && Math.abs(cz)<50) continue;
- createCluster(cx,cz);
+// 密集塊を複数配置
+for(let i=0;i<5;i++){
+ let cx=(Math.random()-0.5)*400;
+ let cz=(Math.random()-0.5)*400;
+
+ if(Math.abs(cx)<40 && Math.abs(cz)<40) continue;
+
+ createAlleyBlock(cx,cz);
 }
 
 //////////////////////////////////////////////////
-// 公園（必ず1つランダム）
+// トンネル（ゴール）
 //////////////////////////////////////////////////
 
-let parkX=(Math.random()-0.5)*600;
-let parkZ=(Math.random()-0.5)*600;
-
-const parkGround=new THREE.Mesh(
- new THREE.PlaneGeometry(60,60),
- new THREE.MeshStandardMaterial({color:0x3a7a3a})
+const tunnel=new THREE.Mesh(
+ new THREE.CylinderGeometry(6,6,20,24,1,true),
+ new THREE.MeshStandardMaterial({color:0x222222,side:THREE.DoubleSide})
 );
-parkGround.rotation.x=-Math.PI/2;
-parkGround.position.set(parkX,0.02,parkZ);
-scene.add(parkGround);
+tunnel.rotation.z=Math.PI/2;
+tunnel.position.set(250,5,0);
+scene.add(tunnel);
 
-// ブランコ
-const swing=new THREE.Mesh(
- new THREE.BoxGeometry(8,6,1),
- new THREE.MeshStandardMaterial({color:0xaa0000})
-);
-swing.position.set(parkX,3,parkZ);
-scene.add(swing);
-addCollider(swing);
+const goalPos=new THREE.Vector3(250,0,0);
 
 //////////////////////////////////////////////////
-// 敵（確実に存在）
+// 敵
 //////////////////////////////////////////////////
 
 const enemy=new THREE.Group();
@@ -158,7 +153,7 @@ const head=new THREE.Mesh(
 head.position.y=5;
 enemy.add(head);
 
-enemy.position.set(40,0,40); // 必ず見える距離
+enemy.position.set(50,0,50);
 scene.add(enemy);
 
 //////////////////////////////////////////////////
@@ -224,23 +219,41 @@ function animate(){
 
  camera.position.y=1.7;
 
- // 敵追跡（安定）
+ //////////////////////////////////////////////////
+ // 敵追跡（障害物考慮）
+ //////////////////////////////////////////////////
+
  let dx=camera.position.x-enemy.position.x;
  let dz=camera.position.z-enemy.position.z;
  let dist=Math.sqrt(dx*dx+dz*dz);
 
  if(dist>2){
-  enemy.position.x+=dx/dist*0.15;
-  enemy.position.z+=dz/dist*0.15;
- }
+  let stepX=enemy.position.x+dx/dist*0.18;
+  let stepZ=enemy.position.z+dz/dist*0.18;
 
- if(dist<2){
-  alert("不審者に捕まった…");
-  camera.position.set(0,1.7,0);
-  enemy.position.set(40,0,40);
+  if(!collide(new THREE.Vector3(stepX,0,stepZ))){
+   enemy.position.x=stepX;
+   enemy.position.z=stepZ;
+  }
  }
 
  enemy.lookAt(camera.position);
+
+ if(dist<2){
+  alert("捕まった…");
+  camera.position.set(0,1.7,0);
+  enemy.position.set(50,0,50);
+ }
+
+ //////////////////////////////////////////////////
+ // ゴール判定
+ //////////////////////////////////////////////////
+
+ if(camera.position.distanceTo(goalPos)<5){
+  alert("トンネルから脱出成功！");
+  camera.position.set(0,1.7,0);
+  enemy.position.set(50,0,50);
+ }
 
  renderer.render(scene,camera);
 }
