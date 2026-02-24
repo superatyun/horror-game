@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Midwest Escape - Structured City</title>
+<title>Midwest Escape - Fixed Movement</title>
 <style>
 body{margin:0;overflow:hidden;background:black;}
 #ui{
@@ -17,10 +17,6 @@ color:white;font-family:sans-serif;
 <script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
 <script>
 
-//////////////////////////////////////////////////
-// 基本
-//////////////////////////////////////////////////
-
 const scene=new THREE.Scene();
 scene.fog=new THREE.Fog(0x000000,20,120);
 
@@ -31,20 +27,12 @@ const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
-//////////////////////////////////////////////////
-// 光
-//////////////////////////////////////////////////
-
 const ambient=new THREE.AmbientLight(0x555555);
 scene.add(ambient);
 
 const moon=new THREE.DirectionalLight(0x99aaff,0.7);
 moon.position.set(50,100,50);
 scene.add(moon);
-
-//////////////////////////////////////////////////
-// 地面
-//////////////////////////////////////////////////
 
 const ground=new THREE.Mesh(
  new THREE.PlaneGeometry(400,400),
@@ -54,62 +42,54 @@ ground.rotation.x=-Math.PI/2;
 scene.add(ground);
 
 //////////////////////////////////////////////////
-// 衝突管理
+// 衝突管理（動的更新方式に修正）
 //////////////////////////////////////////////////
 
 const colliders=[];
 
 function addCollider(mesh){
- const box=new THREE.Box3().setFromObject(mesh);
- colliders.push({mesh,box});
+ colliders.push(mesh);
+}
+
+function collide(pos){
+ const playerBox=new THREE.Box3(
+  new THREE.Vector3(pos.x-1,0,pos.z-1),
+  new THREE.Vector3(pos.x+1,2,pos.z+1)
+ );
+
+ for(let mesh of colliders){
+   const box=new THREE.Box3().setFromObject(mesh);
+   if(playerBox.intersectsBox(box)) return true;
+ }
+ return false;
 }
 
 //////////////////////////////////////////////////
-// 建物生成
+// 建物
 //////////////////////////////////////////////////
 
 function createHouse(x,z){
- const group=new THREE.Group();
-
  const base=new THREE.Mesh(
    new THREE.BoxGeometry(8,6,8),
    new THREE.MeshStandardMaterial({color:0x5a3a2a})
  );
- base.position.y=3;
- group.add(base);
-
- const roof=new THREE.Mesh(
-   new THREE.ConeGeometry(6,4,4),
-   new THREE.MeshStandardMaterial({color:0x222222})
- );
- roof.position.y=7;
- roof.rotation.y=Math.PI/4;
- group.add(roof);
-
- group.position.set(x,0,z);
- scene.add(group);
-
+ base.position.set(x,3,z);
+ scene.add(base);
  addCollider(base);
 }
 
 function createBuilding(x,z){
  const height=20+Math.random()*30;
-
  const building=new THREE.Mesh(
    new THREE.BoxGeometry(12,height,12),
    new THREE.MeshStandardMaterial({color:0x333344})
  );
  building.position.set(x,height/2,z);
  scene.add(building);
-
  addCollider(building);
 }
 
-//////////////////////////////////////////////////
-// エリア構造
-//////////////////////////////////////////////////
-
-// 住宅街（左側）
+// 住宅街
 for(let x=-80;x<-10;x+=12){
  for(let z=-80;z<=80;z+=12){
    if(Math.abs(x)<15 && Math.abs(z)<15) continue;
@@ -117,7 +97,7 @@ for(let x=-80;x<-10;x+=12){
  }
 }
 
-// オフィス街（右側）
+// オフィス街
 for(let x=20;x<=80;x+=20){
  for(let z=-80;z<=80;z+=20){
    createBuilding(x,z);
@@ -128,34 +108,13 @@ for(let x=20;x<=80;x+=20){
 // 敵
 //////////////////////////////////////////////////
 
-const enemyGroup=new THREE.Group();
-
-const body=new THREE.Mesh(
+const enemy=new THREE.Mesh(
  new THREE.CylinderGeometry(1.5,1.5,6,16),
  new THREE.MeshStandardMaterial({color:0x550000})
 );
-body.position.y=3;
-enemyGroup.add(body);
-
-const head=new THREE.Mesh(
- new THREE.SphereGeometry(1.5,16,16),
- new THREE.MeshStandardMaterial({color:0x331111})
-);
-head.position.y=6;
-enemyGroup.add(head);
-
-// 目
-const eyeMat=new THREE.MeshBasicMaterial({color:0xffffff});
-const eye1=new THREE.Mesh(new THREE.SphereGeometry(0.3,8,8),eyeMat);
-eye1.position.set(0.5,6,1.2);
-enemyGroup.add(eye1);
-
-const eye2=eye1.clone();
-eye2.position.x=-0.5;
-enemyGroup.add(eye2);
-
-enemyGroup.position.set(-30,0,-30);
-scene.add(enemyGroup);
+enemy.position.set(-30,3,-30);
+scene.add(enemy);
+addCollider(enemy);
 
 //////////////////////////////////////////////////
 // 入力
@@ -175,28 +134,12 @@ if(e.key.toLowerCase()==="f") lookingBack=false;
 });
 
 //////////////////////////////////////////////////
-// 衝突判定
-//////////////////////////////////////////////////
-
-function collide(pos){
- const playerBox=new THREE.Box3(
-  new THREE.Vector3(pos.x-1,0,pos.z-1),
-  new THREE.Vector3(pos.x+1,2,pos.z+1)
- );
-
- for(let c of colliders){
-   if(playerBox.intersectsBox(c.box)) return true;
- }
- return false;
-}
-
-//////////////////////////////////////////////////
-// ゲームオーバー処理
+// リスポーン
 //////////////////////////////////////////////////
 
 function resetGame(){
  camera.position.set(0,1.7,0);
- enemyGroup.position.set(-30,0,-30);
+ enemy.position.set(-30,3,-30);
 }
 
 //////////////////////////////////////////////////
@@ -231,16 +174,16 @@ function animate(){
 
  camera.position.y=1.7;
 
- // 敵追跡（障害物チェック付き）
- let dx=camera.position.x-enemyGroup.position.x;
- let dz=camera.position.z-enemyGroup.position.z;
+ // 敵追跡（すり抜けなし）
+ let dx=camera.position.x-enemy.position.x;
+ let dz=camera.position.z-enemy.position.z;
  let dist=Math.sqrt(dx*dx+dz*dz);
 
  if(dist>2){
    let step=new THREE.Vector3(dx/dist*0.05,0,dz/dist*0.05);
-   let next=enemyGroup.position.clone().add(step);
+   let next=enemy.position.clone().add(step);
    if(!collide(next)){
-     enemyGroup.position.copy(next);
+     enemy.position.copy(next);
    }
  }
 
@@ -249,13 +192,9 @@ function animate(){
    resetGame();
  }
 
- enemyGroup.lookAt(camera.position);
+ enemy.lookAt(camera.position);
 
- if(lookingBack){
-   camera.rotation.y=yaw+Math.PI;
- }else{
-   camera.rotation.y=yaw;
- }
+ camera.rotation.y=lookingBack?yaw+Math.PI:yaw;
 
  renderer.render(scene,camera);
 }
