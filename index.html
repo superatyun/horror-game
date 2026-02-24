@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Evening Escape - Dense Suburb</title>
+<title>Japanese Evening Suburb</title>
 <style>
 body{margin:0;overflow:hidden;background:#ff8844;}
 #ui{
@@ -13,19 +13,19 @@ color:white;font-family:sans-serif;
 </style>
 </head>
 <body>
-<div id="ui">クリックで視点操作 / WASD移動 / Shiftダッシュ / F長押し振り向き</div>
+<div id="ui">WASD移動 / Shiftダッシュ / F長押し振り向き</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
 <script>
 
 //////////////////////////////////////////////////
-// 基本
+// 基本設定
 //////////////////////////////////////////////////
 
 const scene=new THREE.Scene();
-scene.fog=new THREE.FogExp2(0xff8844,0.012);
+scene.fog=new THREE.FogExp2(0xff8844,0.01);
 
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,1500);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,2000);
 camera.position.set(0,1.7,0);
 
 const renderer=new THREE.WebGLRenderer({antialias:true});
@@ -33,11 +33,7 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.setClearColor(0xff8844);
 document.body.appendChild(renderer.domElement);
 
-//////////////////////////////////////////////////
-// ライト（夕方）
-//////////////////////////////////////////////////
-
-scene.add(new THREE.AmbientLight(0xffbb88,0.8));
+scene.add(new THREE.AmbientLight(0xffbb88,0.9));
 const sun=new THREE.DirectionalLight(0xff9966,0.8);
 sun.position.set(-100,80,50);
 scene.add(sun);
@@ -47,18 +43,18 @@ scene.add(sun);
 //////////////////////////////////////////////////
 
 const ground=new THREE.Mesh(
- new THREE.PlaneGeometry(800,800),
+ new THREE.PlaneGeometry(1200,1200),
  new THREE.MeshStandardMaterial({color:0x666666})
 );
 ground.rotation.x=-Math.PI/2;
 scene.add(ground);
 
 //////////////////////////////////////////////////
-// 衝突管理
+// 衝突
 //////////////////////////////////////////////////
 
 const colliders=[];
-function addCollider(mesh){colliders.push(mesh);}
+function addCollider(m){colliders.push(m);}
 
 function collide(pos){
  const box=new THREE.Box3(
@@ -66,18 +62,17 @@ function collide(pos){
   new THREE.Vector3(pos.x+1,2,pos.z+1)
  );
  for(let m of colliders){
-  const mbox=new THREE.Box3().setFromObject(m);
-  if(box.intersectsBox(mbox)) return true;
+  const mb=new THREE.Box3().setFromObject(m);
+  if(box.intersectsBox(mb)) return true;
  }
  return false;
 }
 
 //////////////////////////////////////////////////
-// 日本の家（密集）
+// 家（クラスター生成）
 //////////////////////////////////////////////////
 
-function createJapaneseHouse(x,z){
-
+function createHouse(x,z){
  const base=new THREE.Mesh(
   new THREE.BoxGeometry(7,6,7),
   new THREE.MeshStandardMaterial({color:0xe0e0e0})
@@ -94,7 +89,6 @@ function createJapaneseHouse(x,z){
  roof.rotation.y=Math.PI/4;
  scene.add(roof);
 
- // 塀（小さめ）
  const fence=new THREE.Mesh(
   new THREE.BoxGeometry(8.5,1.5,8.5),
   new THREE.MeshStandardMaterial({color:0x999999})
@@ -102,78 +96,50 @@ function createJapaneseHouse(x,z){
  fence.position.set(x,0.75,z);
  scene.add(fence);
  addCollider(fence);
+}
 
- // 植物
- if(Math.random()>0.5){
-  const plant=new THREE.Mesh(
-   new THREE.SphereGeometry(1.2,8,8),
-   new THREE.MeshStandardMaterial({color:0x228833})
-  );
-  plant.position.set(x+3,1.2,z+3);
-  scene.add(plant);
-  addCollider(plant);
+function createCluster(cx,cz){
+ for(let x=-15;x<=15;x+=10){
+  for(let z=-15;z<=15;z+=10){
+   createHouse(cx+x,cz+z);
+  }
  }
 }
 
-//////////////////////////////////////////////////
-// 公園（ランダム位置）
-//////////////////////////////////////////////////
-
-function createPark(px,pz){
-
- // 地面
- const parkGround=new THREE.Mesh(
-  new THREE.PlaneGeometry(40,40),
-  new THREE.MeshStandardMaterial({color:0x3a7a3a})
- );
- parkGround.rotation.x=-Math.PI/2;
- parkGround.position.set(px,0.01,pz);
- scene.add(parkGround);
-
- // ブランコ風
- const swing=new THREE.Mesh(
-  new THREE.BoxGeometry(6,5,1),
-  new THREE.MeshStandardMaterial({color:0xaa0000})
- );
- swing.position.set(px,2.5,pz);
- scene.add(swing);
- addCollider(swing);
-
- // 木
- for(let i=0;i<5;i++){
-  const tree=new THREE.Mesh(
-   new THREE.CylinderGeometry(0.5,0.7,5,8),
-   new THREE.MeshStandardMaterial({color:0x5a3a1a})
-  );
-  tree.position.set(
-   px+(Math.random()-0.5)*30,
-   2.5,
-   pz+(Math.random()-0.5)*30
-  );
-  scene.add(tree);
-  addCollider(tree);
- }
-}
-
-// 公園ランダム生成
-const parkX=(Math.random()-0.5)*400;
-const parkZ=(Math.random()-0.5)*400;
-createPark(parkX,parkZ);
-
-//////////////////////////////////////////////////
-// 家密集生成
-//////////////////////////////////////////////////
-
-for(let x=-350;x<=350;x+=10){
- for(let z=-350;z<=350;z+=10){
-  if(Math.abs(x)<20 && Math.abs(z)<20) continue;
-  if(Math.abs(x-parkX)<30 && Math.abs(z-parkZ)<30) continue;
-  createJapaneseHouse(x,z);
- }
+// クラスターを複数ランダム配置
+for(let i=0;i<8;i++){
+ let cx=(Math.random()-0.5)*800;
+ let cz=(Math.random()-0.5)*800;
+ if(Math.abs(cx)<50 && Math.abs(cz)<50) continue;
+ createCluster(cx,cz);
 }
 
 //////////////////////////////////////////////////
-// 敵（追跡速度UP）
+// 公園（必ず1つランダム）
+//////////////////////////////////////////////////
+
+let parkX=(Math.random()-0.5)*600;
+let parkZ=(Math.random()-0.5)*600;
+
+const parkGround=new THREE.Mesh(
+ new THREE.PlaneGeometry(60,60),
+ new THREE.MeshStandardMaterial({color:0x3a7a3a})
+);
+parkGround.rotation.x=-Math.PI/2;
+parkGround.position.set(parkX,0.02,parkZ);
+scene.add(parkGround);
+
+// ブランコ
+const swing=new THREE.Mesh(
+ new THREE.BoxGeometry(8,6,1),
+ new THREE.MeshStandardMaterial({color:0xaa0000})
+);
+swing.position.set(parkX,3,parkZ);
+scene.add(swing);
+addCollider(swing);
+
+//////////////////////////////////////////////////
+// 敵（確実に存在）
 //////////////////////////////////////////////////
 
 const enemy=new THREE.Group();
@@ -192,9 +158,8 @@ const head=new THREE.Mesh(
 head.position.y=5;
 enemy.add(head);
 
-enemy.position.set(-100,0,-100);
+enemy.position.set(40,0,40); // 必ず見える距離
 scene.add(enemy);
-addCollider(enemy);
 
 //////////////////////////////////////////////////
 // カメラ操作
@@ -215,30 +180,16 @@ document.addEventListener("mousemove",e=>{
  }
 });
 
-//////////////////////////////////////////////////
-// 入力
-//////////////////////////////////////////////////
-
 const keys={};
 
 document.addEventListener("keydown",e=>{
  keys[e.key.toLowerCase()]=true;
  if(e.key.toLowerCase()==="f") lookingBack=true;
 });
-
 document.addEventListener("keyup",e=>{
  keys[e.key.toLowerCase()]=false;
  if(e.key.toLowerCase()==="f") lookingBack=false;
 });
-
-//////////////////////////////////////////////////
-// リスポーン
-//////////////////////////////////////////////////
-
-function resetGame(){
- camera.position.set(0,1.7,0);
- enemy.position.set(-100,0,-100);
-}
 
 //////////////////////////////////////////////////
 // アニメーション
@@ -251,7 +202,7 @@ function animate(){
  camera.rotation.y=lookingBack?yaw+Math.PI:yaw;
  camera.rotation.x=pitch;
 
- let speed=keys["shift"]?0.35:0.18;
+ let speed=keys["shift"]?0.35:0.2;
 
  let forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
  let right=new THREE.Vector3(-forward.z,0,forward.x);
@@ -273,22 +224,20 @@ function animate(){
 
  camera.position.y=1.7;
 
- // 🔥 追跡速度アップ
+ // 敵追跡（安定）
  let dx=camera.position.x-enemy.position.x;
  let dz=camera.position.z-enemy.position.z;
  let dist=Math.sqrt(dx*dx+dz*dz);
 
  if(dist>2){
-  let step=new THREE.Vector3(dx/dist*0.12,0,dz/dist*0.12);
-  let next=enemy.position.clone().add(step);
-  if(!collide(next)){
-   enemy.position.copy(next);
-  }
+  enemy.position.x+=dx/dist*0.15;
+  enemy.position.z+=dz/dist*0.15;
  }
 
  if(dist<2){
   alert("不審者に捕まった…");
-  resetGame();
+  camera.position.set(0,1.7,0);
+  enemy.position.set(40,0,40);
  }
 
  enemy.lookAt(camera.position);
