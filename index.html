@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Midwest Escape 1998</title>
+<title>Midwest Escape - Nightfall</title>
 <style>
 body{margin:0;overflow:hidden;background:black;}
 #ui{
@@ -18,7 +18,7 @@ body{margin:0;overflow:hidden;background:black;}
 <body>
 
 <div id="ui">
-WASD移動 / Shiftダッシュ / F振り向き
+WASD移動 / Shiftダッシュ / F長押しで振り向く
 <div id="staminaBar"><div id="stamina"></div></div>
 </div>
 
@@ -26,40 +26,10 @@ WASD移動 / Shiftダッシュ / F振り向き
 <script>
 
 //////////////////////////////////////////////////
-// シーン基本
+// 基本
 //////////////////////////////////////////////////
 
 const scene=new THREE.Scene();
-scene.fog=new THREE.Fog(0xff9966,80,200); // 夕焼けフォグ
-
-// スカイボックス（グラデーション）
-const skyGeo=new THREE.SphereGeometry(500,32,32);
-const skyMat=new THREE.ShaderMaterial({
- side:THREE.BackSide,
- uniforms:{
-  topColor:{value:new THREE.Color(0xff9966)},
-  bottomColor:{value:new THREE.Color(0x223366)},
- },
- vertexShader:`
-  varying vec3 vWorldPosition;
-  void main(){
-    vec4 worldPosition=modelMatrix*vec4(position,1.0);
-    vWorldPosition=worldPosition.xyz;
-    gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
-  }
- `,
- fragmentShader:`
-  uniform vec3 topColor;
-  uniform vec3 bottomColor;
-  varying vec3 vWorldPosition;
-  void main(){
-    float h=normalize(vWorldPosition).y;
-    gl_FragColor=vec4(mix(bottomColor,topColor,max(h,0.0)),1.0);
-  }
- `
-});
-scene.add(new THREE.Mesh(skyGeo,skyMat));
-
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,1000);
 camera.position.set(0,1.7,0);
 
@@ -68,10 +38,33 @@ renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff,0.7));
-const sun=new THREE.DirectionalLight(0xffcc88,1);
+//////////////////////////////////////////////////
+// 時間経過システム
+//////////////////////////////////////////////////
+
+let time=0; // 0=夕方 1=夜
+
+const ambient=new THREE.AmbientLight(0xffffff,0.8);
+scene.add(ambient);
+
+const sun=new THREE.DirectionalLight(0xffaa88,1);
 sun.position.set(50,100,50);
 scene.add(sun);
+
+function updateDayNight(){
+ time+=0.00005;
+ if(time>1) time=1;
+
+ const skyColor=new THREE.Color().lerpColors(
+   new THREE.Color(0xff9966),
+   new THREE.Color(0x000022),
+   time
+ );
+ renderer.setClearColor(skyColor);
+
+ ambient.intensity=0.8-(time*0.5);
+ sun.intensity=1-(time*0.8);
+}
 
 //////////////////////////////////////////////////
 // 地面
@@ -82,86 +75,57 @@ const ground=new THREE.Mesh(
  new THREE.MeshStandardMaterial({color:0x444444})
 );
 ground.rotation.x=-Math.PI/2;
-ground.receiveShadow=true;
 scene.add(ground);
 
 //////////////////////////////////////////////////
-// 建物（窓ランダム発光）
+// 障害物管理
+//////////////////////////////////////////////////
+
+const colliders=[];
+
+function addCollider(mesh){
+ const box=new THREE.Box3().setFromObject(mesh);
+ colliders.push(box);
+}
+
+//////////////////////////////////////////////////
+// 建物
 //////////////////////////////////////////////////
 
 function createHouse(x,z){
 
- if(Math.sqrt(x*x+z*z)<12) return;
+ if(Math.sqrt(x*x+z*z)<15) return; // 安全地帯
 
- const house=new THREE.Group();
-
- const body=new THREE.Mesh(
-   new THREE.BoxGeometry(4,3,4),
-   new THREE.MeshStandardMaterial({color:0xd2b48c})
+ const house=new THREE.Mesh(
+   new THREE.BoxGeometry(6,6,6),
+   new THREE.MeshStandardMaterial({color:0xb8860b})
  );
- body.position.y=1.5;
- house.add(body);
-
- const roof=new THREE.Mesh(
-   new THREE.ConeGeometry(3.5,2,4),
-   new THREE.MeshStandardMaterial({color:0x8b0000})
- );
- roof.position.y=3.5;
- roof.rotation.y=Math.PI/4;
- house.add(roof);
-
- // ランダム点灯
- const lit=Math.random()>0.5;
- const windowMat=new THREE.MeshStandardMaterial({
-   color:lit?0xffffaa:0x333333,
-   emissive:lit?0xffcc66:0x000000
- });
-
- const windowGeo=new THREE.BoxGeometry(0.8,0.8,0.1);
- const w1=new THREE.Mesh(windowGeo,windowMat);
- w1.position.set(-1,1,2.05);
- house.add(w1);
-
- const w2=new THREE.Mesh(windowGeo,windowMat);
- w2.position.set(1,1,2.05);
- house.add(w2);
-
- house.position.set(x,0,z);
+ house.position.set(x,3,z);
  scene.add(house);
+ addCollider(house);
 }
 
-for(let x=-60;x<=60;x+=10){
- for(let z=-60;z<=60;z+=10){
-   if(Math.random()>0.2) createHouse(x,z);
+for(let x=-60;x<=60;x+=12){
+ for(let z=-60;z<=60;z+=12){
+   if(Math.random()>0.3) createHouse(x,z);
  }
 }
 
 //////////////////////////////////////////////////
-// 放置された車
+// 車
 //////////////////////////////////////////////////
 
 function createCar(x,z){
- const car=new THREE.Group();
-
- const body=new THREE.Mesh(
-   new THREE.BoxGeometry(3,1,2),
+ const car=new THREE.Mesh(
+   new THREE.BoxGeometry(4,2,2),
    new THREE.MeshStandardMaterial({color:0x222222})
  );
- body.position.y=0.5;
- car.add(body);
-
- const cabin=new THREE.Mesh(
-   new THREE.BoxGeometry(1.5,1,1.8),
-   new THREE.MeshStandardMaterial({color:0x444444})
- );
- cabin.position.set(0,1,0);
- car.add(cabin);
-
- car.position.set(x,0,z);
+ car.position.set(x,1,z);
  scene.add(car);
+ addCollider(car);
 }
 
-for(let i=0;i<10;i++){
+for(let i=0;i<8;i++){
  createCar(
    (Math.random()-0.5)*120,
    (Math.random()-0.5)*120
@@ -176,20 +140,21 @@ const enemy=new THREE.Mesh(
  new THREE.BoxGeometry(2,5,2),
  new THREE.MeshStandardMaterial({color:0x880000})
 );
-enemy.position.set(-20,2.5,-20);
+enemy.position.set(-30,2.5,-30);
 scene.add(enemy);
 
 //////////////////////////////////////////////////
-// カメラ最適化
+// カメラ制御
 //////////////////////////////////////////////////
 
-let pitch=0,yaw=0,targetPitch=0,targetYaw=0;
+let pitch=0,yaw=0;
+let targetPitch=0,targetYaw=0;
 
 document.addEventListener("mousemove",e=>{
  if(document.pointerLockElement===document.body){
-   targetYaw-=e.movementX*0.001; // 感度さらに低下
-   targetPitch-=e.movementY*0.001;
-   targetPitch=Math.max(-Math.PI/4,Math.min(Math.PI/4,targetPitch)); // 可動域縮小
+   targetYaw-=e.movementX*0.0012;
+   targetPitch-=e.movementY*0.0012;
+   targetPitch=Math.max(-Math.PI/4,Math.min(Math.PI/4,targetPitch));
  }
 });
 
@@ -202,12 +167,19 @@ document.body.addEventListener("click",()=>{
 //////////////////////////////////////////////////
 
 const keys={};
+let lookingBack=false;
+
 document.addEventListener("keydown",e=>{
  const k=e.key.toLowerCase();
  keys[k]=true;
- if(k==="f") yaw+=Math.PI;
+ if(k==="f") lookingBack=true;
 });
-document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+document.addEventListener("keyup",e=>{
+ const k=e.key.toLowerCase();
+ keys[k]=false;
+ if(k==="f") lookingBack=false;
+});
 
 //////////////////////////////////////////////////
 // スタミナ
@@ -217,33 +189,50 @@ let stamina=100;
 const staminaEl=document.getElementById("stamina");
 
 //////////////////////////////////////////////////
-// 移動
+// 移動＋衝突判定
 //////////////////////////////////////////////////
 
+function checkCollision(newPos){
+ const playerBox=new THREE.Box3(
+   new THREE.Vector3(newPos.x-0.5,0,newPos.z-0.5),
+   new THREE.Vector3(newPos.x+0.5,2,newPos.z+0.5)
+ );
+ for(let box of colliders){
+   if(playerBox.intersectsBox(box)) return true;
+ }
+ return false;
+}
+
 function move(){
+
  let speed=0.15;
  if(keys["shift"]&&stamina>0){
-   speed=0.28;
-   stamina-=0.6;
- }else stamina+=0.3;
+   speed=0.3;
+   stamina-=0.7;
+ }else stamina+=0.4;
 
  stamina=Math.max(0,Math.min(100,stamina));
  staminaEl.style.width=stamina+"%";
  staminaEl.style.background=stamina<30?"red":"lime";
 
- const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
- const right=new THREE.Vector3(-dir.z,0,dir.x);
+ const forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+ const right=new THREE.Vector3(-forward.z,0,forward.x);
 
  let moveVec=new THREE.Vector3();
- if(keys["w"]) moveVec.add(dir);
- if(keys["s"]) moveVec.sub(dir);
+ if(keys["w"]) moveVec.add(forward);
+ if(keys["s"]) moveVec.sub(forward);
  if(keys["a"]) moveVec.sub(right);
  if(keys["d"]) moveVec.add(right);
 
  if(moveVec.length()>0){
    moveVec.normalize().multiplyScalar(speed);
-   camera.position.x+=moveVec.x;
-   camera.position.z+=moveVec.z;
+
+   const newPos=camera.position.clone().add(moveVec);
+
+   if(!checkCollision(newPos)){
+     camera.position.x=newPos.x;
+     camera.position.z=newPos.z;
+   }
  }
 
  camera.position.y=1.7;
@@ -259,8 +248,8 @@ function updateEnemy(){
  const dist=Math.sqrt(dx*dx+dz*dz);
 
  if(dist>2){
-   enemy.position.x+=dx/dist*0.04;
-   enemy.position.z+=dz/dist*0.04;
+   enemy.position.x+=dx/dist*0.05;
+   enemy.position.z+=dz/dist*0.05;
  }
 
  enemy.lookAt(camera.position);
@@ -273,9 +262,15 @@ function updateEnemy(){
 function animate(){
  requestAnimationFrame(animate);
 
- yaw+=(targetYaw-yaw)*0.1;   // 補間ゆるめ
- pitch+=(targetPitch-pitch)*0.1;
- camera.rotation.set(pitch,yaw,0);
+ updateDayNight();
+
+ if(lookingBack){
+   camera.rotation.set(pitch,yaw+Math.PI,0);
+ }else{
+   yaw+=(targetYaw-yaw)*0.15;
+   pitch+=(targetPitch-pitch)*0.15;
+   camera.rotation.set(pitch,yaw,0);
+ }
 
  move();
  updateEnemy();
