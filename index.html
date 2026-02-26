@@ -2,18 +2,17 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Katamari Stages</title>
+<title>Katamari Ultimate</title>
 <style>
-body{margin:0;overflow:hidden;background:black;}
+body{margin:0;overflow:hidden;background:black;font-family:sans-serif;}
 #menu{
 position:absolute;top:50%;left:50%;
 transform:translate(-50%,-50%);
-color:white;text-align:center;font-family:sans-serif;
+color:white;text-align:center;
 }
 button{padding:10px 20px;margin:5px;font-size:16px;}
 #ui{
-position:absolute;top:10px;left:10px;
-color:white;font-family:sans-serif;display:none;
+position:absolute;top:10px;left:10px;color:white;display:none;
 }
 </style>
 </head>
@@ -29,17 +28,22 @@ color:white;font-family:sans-serif;display:none;
 </div>
 
 <div id="ui">
-サイズ: <span id="size">10</span>cm
+サイズ: <span id="size">10</span>cm<br>
+目標: <span id="goal"></span>cm<br>
+残り時間: <span id="time"></span>s
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
 <script>
 
 let scene,camera,renderer,ball;
-let objects=[];
+let objects=[],gates=[];
 let size=10,radius;
 let keys={};
 let yaw=0,pitch=0;
+let goal=500;
+let timeLimit=120;
+let timer;
 
 function startGame(stage){
  document.getElementById("menu").style.display="none";
@@ -50,7 +54,7 @@ function startGame(stage){
 function init(stage){
 
  scene=new THREE.Scene();
- camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,10000);
+ camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,20000);
 
  renderer=new THREE.WebGLRenderer({antialias:true});
  renderer.setSize(innerWidth,innerHeight);
@@ -58,7 +62,7 @@ function init(stage){
  document.body.appendChild(renderer.domElement);
 
  const light=new THREE.DirectionalLight(0xffffff,1);
- light.position.set(200,400,200);
+ light.position.set(300,500,300);
  light.castShadow=true;
  scene.add(light);
  scene.add(new THREE.AmbientLight(0xffffff,0.4));
@@ -74,8 +78,7 @@ function init(stage){
  ball.position.y=radius;
  scene.add(ball);
 
- createMap(stage);
- createObjects(stage);
+ createStage(stage);
 
  document.body.addEventListener("click",()=>{
   document.body.requestPointerLock();
@@ -92,175 +95,92 @@ function init(stage){
  document.addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
  document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 
+ goal = stage==="house"?200:
+        stage==="city"?500:
+        stage==="world"?1500:
+        stage==="earth"?5000:20000;
+
+ document.getElementById("goal").innerText=goal;
+
+ timer=setInterval(()=>{
+  timeLimit--;
+  document.getElementById("time").innerText=timeLimit;
+  if(timeLimit<=0){
+   alert(size>=goal?"成功！":"失敗！");
+   location.reload();
+  }
+ },1000);
+
  animate();
 }
 
-//////////////////////////////////////////////////
-// マップ生成
-//////////////////////////////////////////////////
+function createStage(stage){
 
-function createMap(stage){
+ let groundSize=stage==="house"?200:
+                stage==="city"?1000:
+                stage==="world"?2000:
+                stage==="earth"?4000:6000;
 
- if(stage==="house"){
-  scene.background=new THREE.Color(0xf5deb3);
-
-  const floor=new THREE.Mesh(
-   new THREE.PlaneGeometry(200,200),
-   new THREE.MeshStandardMaterial({color:0xd2b48c})
-  );
-  floor.rotation.x=-Math.PI/2;
-  floor.receiveShadow=true;
-  scene.add(floor);
-
-  // 壁
-  createWall(0,50,100,10);
-  createWall(0,-50,100,10);
-  createWall(50,0,10,100);
-  createWall(-50,0,10,100);
- }
-
- else if(stage==="city"){
-  scene.background=new THREE.Color(0x87ceeb);
-
-  const ground=new THREE.Mesh(
-   new THREE.PlaneGeometry(1000,1000),
-   new THREE.MeshStandardMaterial({color:0x555555})
-  );
-  ground.rotation.x=-Math.PI/2;
-  scene.add(ground);
- }
-
- else if(stage==="world"){
-  scene.background=new THREE.Color(0xffcc88);
-
-  const ground=new THREE.Mesh(
-   new THREE.PlaneGeometry(2000,2000),
-   new THREE.MeshStandardMaterial({color:0xdeb887})
-  );
-  ground.rotation.x=-Math.PI/2;
-  scene.add(ground);
- }
-
- else if(stage==="earth"){
-  scene.background=new THREE.Color(0x000022);
-
-  const earth=new THREE.Mesh(
-   new THREE.SphereGeometry(500,64,64),
-   new THREE.MeshStandardMaterial({color:0x2266dd})
-  );
-  scene.add(earth);
- }
-
- else if(stage==="space"){
-  scene.background=new THREE.Color(0x000011);
- }
-
-}
-
-function createWall(x,z,w,d){
- const wall=new THREE.Mesh(
-  new THREE.BoxGeometry(w,20,d),
-  new THREE.MeshStandardMaterial({color:0x8b4513})
+ const ground=new THREE.Mesh(
+  new THREE.PlaneGeometry(groundSize,groundSize),
+  new THREE.MeshStandardMaterial({color:stage==="house"?0xd2b48c:0x228b22})
  );
- wall.position.set(x,10,z);
- wall.castShadow=true;
- wall.userData.block=true;
- scene.add(wall);
- objects.push(wall);
+ ground.rotation.x=-Math.PI/2;
+ ground.receiveShadow=true;
+ scene.add(ground);
+
+ for(let i=0;i<300;i++){
+  let s=Math.random()*30+5;
+  let geo=Math.random()>0.5?
+   new THREE.BoxGeometry(s,s,s):
+   new THREE.CylinderGeometry(s/2,s/2,s,8);
+
+  let obj=new THREE.Mesh(
+   geo,
+   new THREE.MeshStandardMaterial({color:Math.random()*0xffffff})
+  );
+  obj.position.set(
+   (Math.random()-0.5)*groundSize,
+   s/2,
+   (Math.random()-0.5)*groundSize
+  );
+  obj.castShadow=true;
+  obj.userData.size=s;
+  obj.userData.attached=false;
+  scene.add(obj);
+  objects.push(obj);
+ }
+
+ // サイズ制限ゲート
+ let gate=new THREE.Mesh(
+  new THREE.BoxGeometry(50,50,5),
+  new THREE.MeshStandardMaterial({color:0xff0000})
+ );
+ gate.position.set(0,25,-groundSize/4);
+ gate.userData.minSize=500;
+ gate.userData.isGate=true;
+ scene.add(gate);
+ gates.push(gate);
 }
-
-//////////////////////////////////////////////////
-// オブジェクト生成
-//////////////////////////////////////////////////
-
-function createObjects(stage){
-
- objects=[];
-
- function addObject(mesh,sizeVal){
-  mesh.userData.size=sizeVal;
-  mesh.userData.attached=false;
-  mesh.castShadow=true;
-  scene.add(mesh);
-  objects.push(mesh);
- }
-
- if(stage==="house"){
-  for(let i=0;i<200;i++){
-   let s=Math.random()*10+1;
-   let obj=new THREE.Mesh(
-    new THREE.BoxGeometry(s,s,s),
-    new THREE.MeshStandardMaterial({color:0xffaaaa})
-   );
-   obj.position.set((Math.random()-0.5)*80,s/2,(Math.random()-0.5)*80);
-   addObject(obj,s);
-  }
- }
-
- if(stage==="city"){
-  for(let i=0;i<300;i++){
-   let s=Math.random()*30+5;
-   let obj=new THREE.Mesh(
-    new THREE.CylinderGeometry(s/4,s/4,s,8),
-    new THREE.MeshStandardMaterial({color:0x228b22})
-   );
-   obj.position.set((Math.random()-0.5)*800,s/2,(Math.random()-0.5)*800);
-   addObject(obj,s);
-  }
- }
-
- if(stage==="world"){
-  for(let i=0;i<400;i++){
-   let s=Math.random()*80+20;
-   let obj=new THREE.Mesh(
-    new THREE.BoxGeometry(s,s,s),
-    new THREE.MeshStandardMaterial({color:0x888888})
-   );
-   obj.position.set((Math.random()-0.5)*1500,s/2,(Math.random()-0.5)*1500);
-   addObject(obj,s);
-  }
- }
-
- if(stage==="earth"){
-  for(let i=0;i<100;i++){
-   let s=Math.random()*150+50;
-   let obj=new THREE.Mesh(
-    new THREE.SphereGeometry(s/2),
-    new THREE.MeshStandardMaterial({color:0xffffff})
-   );
-   obj.position.set((Math.random()-0.5)*2000,s/2,(Math.random()-0.5)*2000);
-   addObject(obj,s);
-  }
- }
-
- if(stage==="space"){
-  for(let i=0;i<150;i++){
-   let s=Math.random()*200+50;
-   let obj=new THREE.Mesh(
-    new THREE.SphereGeometry(s/2),
-    new THREE.MeshStandardMaterial({color:0x9999ff})
-   );
-   obj.position.set((Math.random()-0.5)*3000,s/2,(Math.random()-0.5)*3000);
-   addObject(obj,s);
-  }
- }
-
-}
-
-//////////////////////////////////////////////////
-// アニメーション
-//////////////////////////////////////////////////
 
 function animate(){
  requestAnimationFrame(animate);
 
- let speed=keys["shift"]?0.6:0.3;
+ let speed=keys["shift"]?0.8:0.4;
+
+ let forward=new THREE.Vector3(
+  Math.sin(yaw),0,Math.cos(yaw)
+ );
+ let right=new THREE.Vector3(
+  Math.cos(yaw),0,-Math.sin(yaw)
+ );
+
  let move=new THREE.Vector3();
 
- if(keys["w"]) move.z-=1;
- if(keys["s"]) move.z+=1;
- if(keys["a"]) move.x-=1;
- if(keys["d"]) move.x+=1;
+ if(keys["w"]) move.add(forward);
+ if(keys["s"]) move.sub(forward);
+ if(keys["a"]) move.sub(right);
+ if(keys["d"]) move.add(right);
 
  if(move.length()>0){
   move.normalize().multiplyScalar(speed);
@@ -271,13 +191,12 @@ function animate(){
  }
 
  for(let obj of objects){
-
   if(obj.userData.attached) continue;
 
   let dist=ball.position.distanceTo(obj.position);
-  let objRadius=obj.userData.size/10;
+  let objR=obj.userData.size/10;
 
-  if(dist<radius+objRadius){
+  if(dist<radius+objR){
 
    if(obj.userData.size<size*1.2){
     obj.userData.attached=true;
@@ -292,20 +211,29 @@ function animate(){
     document.getElementById("size").innerText=Math.floor(size);
    }
    else{
-    // 障害物押し返し
-    let push=ball.position.clone().sub(obj.position).normalize().multiplyScalar(1);
+    let push=ball.position.clone().sub(obj.position).normalize();
     ball.position.add(push);
    }
   }
  }
 
- let camDist=radius*3+30;
+ for(let gate of gates){
+  if(size<gate.userData.minSize){
+   if(ball.position.distanceTo(gate.position)<30){
+    let push=ball.position.clone().sub(gate.position).normalize();
+    ball.position.add(push.multiplyScalar(2));
+   }
+  }
+ }
+
+ let camDist=radius*4+30;
 
  camera.position.set(
-  ball.position.x+Math.sin(yaw)*camDist,
-  ball.position.y+camDist*0.6,
-  ball.position.z+Math.cos(yaw)*camDist
+  ball.position.x+Math.sin(yaw)*camDist*Math.cos(pitch),
+  ball.position.y+camDist*Math.sin(pitch)+radius*2,
+  ball.position.z+Math.cos(yaw)*camDist*Math.cos(pitch)
  );
+
  camera.lookAt(ball.position);
 
  renderer.render(scene,camera);
