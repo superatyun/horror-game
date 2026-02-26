@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Katamari Ultimate</title>
+<title>Katamari Advanced</title>
 <style>
 body{margin:0;overflow:hidden;background:black;font-family:sans-serif;}
 #menu{
@@ -28,7 +28,7 @@ position:absolute;top:10px;left:10px;color:white;display:none;
 </div>
 
 <div id="ui">
-サイズ: <span id="size">10</span>cm<br>
+サイズ: <span id="size">0</span>cm<br>
 目標: <span id="goal"></span>cm<br>
 残り時間: <span id="time"></span>s
 </div>
@@ -38,11 +38,10 @@ position:absolute;top:10px;left:10px;color:white;display:none;
 
 let scene,camera,renderer,ball;
 let objects=[],gates=[];
-let size=10,radius;
-let keys={};
+let size, radius;
 let yaw=0,pitch=0;
-let goal=500;
-let timeLimit=120;
+let keys={};
+let goal,timeLimit;
 let timer;
 
 function startGame(stage){
@@ -54,7 +53,9 @@ function startGame(stage){
 function init(stage){
 
  scene=new THREE.Scene();
- camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,20000);
+ scene.background=new THREE.Color(0x87ceeb);
+
+ camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,50000);
 
  renderer=new THREE.WebGLRenderer({antialias:true});
  renderer.setSize(innerWidth,innerHeight);
@@ -67,15 +68,28 @@ function init(stage){
  scene.add(light);
  scene.add(new THREE.AmbientLight(0xffffff,0.4));
 
- size=10;
+ // ===== ステージ別初期サイズ =====
+ if(stage==="house"){size=5;goal=100;timeLimit=120;}
+ if(stage==="city"){size=20;goal=500;timeLimit=180;}
+ if(stage==="world"){size=100;goal=2000;timeLimit=240;}
+ if(stage==="earth"){size=1000;goal=8000;timeLimit=300;}
+ if(stage==="space"){size=5000;goal=20000;timeLimit=360;}
+
  radius=size/10;
 
+ // 原作風カラー
  ball=new THREE.Mesh(
   new THREE.SphereGeometry(radius,32,32),
-  new THREE.MeshStandardMaterial({color:0xff66cc})
+  new THREE.MeshStandardMaterial({
+   color:0x66ff66,
+   emissive:0x114411,
+   roughness:0.5,
+   metalness:0.2
+  })
  );
  ball.castShadow=true;
  ball.position.y=radius;
+ ball.renderOrder=1; // 常に前面
  scene.add(ball);
 
  createStage(stage);
@@ -95,11 +109,6 @@ function init(stage){
  document.addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
  document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 
- goal = stage==="house"?200:
-        stage==="city"?500:
-        stage==="world"?1500:
-        stage==="earth"?5000:20000;
-
  document.getElementById("goal").innerText=goal;
 
  timer=setInterval(()=>{
@@ -116,34 +125,43 @@ function init(stage){
 
 function createStage(stage){
 
- let groundSize=stage==="house"?200:
-                stage==="city"?1000:
-                stage==="world"?2000:
-                stage==="earth"?4000:6000;
+ let groundSize=2000;
+ if(stage==="house") groundSize=300;
+ if(stage==="city") groundSize=1500;
+ if(stage==="world") groundSize=4000;
+ if(stage==="earth") groundSize=8000;
+ if(stage==="space") groundSize=12000;
 
  const ground=new THREE.Mesh(
   new THREE.PlaneGeometry(groundSize,groundSize),
-  new THREE.MeshStandardMaterial({color:stage==="house"?0xd2b48c:0x228b22})
+  new THREE.MeshStandardMaterial({
+   color:stage==="house"?0xd2b48c:0x228b22
+  })
  );
  ground.rotation.x=-Math.PI/2;
  ground.receiveShadow=true;
  scene.add(ground);
 
- for(let i=0;i<300;i++){
-  let s=Math.random()*30+5;
-  let geo=Math.random()>0.5?
-   new THREE.BoxGeometry(s,s,s):
-   new THREE.CylinderGeometry(s/2,s/2,s,8);
+ // ===== サイズ大小バラバラ配置 =====
+ for(let i=0;i<500;i++){
+  let s=Math.random()*50+5;
+  let geo;
+  if(stage==="house") geo=new THREE.BoxGeometry(s,s,s);
+  else if(stage==="city") geo=new THREE.CylinderGeometry(s/2,s/2,s,8);
+  else geo=new THREE.BoxGeometry(s,s,s);
 
   let obj=new THREE.Mesh(
    geo,
    new THREE.MeshStandardMaterial({color:Math.random()*0xffffff})
   );
+
+  let spacing=100;
   obj.position.set(
    (Math.random()-0.5)*groundSize,
    s/2,
    (Math.random()-0.5)*groundSize
   );
+
   obj.castShadow=true;
   obj.userData.size=s;
   obj.userData.attached=false;
@@ -151,14 +169,13 @@ function createStage(stage){
   objects.push(obj);
  }
 
- // サイズ制限ゲート
+ // ===== サイズゲート =====
  let gate=new THREE.Mesh(
-  new THREE.BoxGeometry(50,50,5),
+  new THREE.BoxGeometry(100,100,20),
   new THREE.MeshStandardMaterial({color:0xff0000})
  );
- gate.position.set(0,25,-groundSize/4);
- gate.userData.minSize=500;
- gate.userData.isGate=true;
+ gate.position.set(0,50,-groundSize/3);
+ gate.userData.minSize=goal/2;
  scene.add(gate);
  gates.push(gate);
 }
@@ -166,14 +183,10 @@ function createStage(stage){
 function animate(){
  requestAnimationFrame(animate);
 
- let speed=keys["shift"]?0.8:0.4;
+ let speed=keys["shift"]?1.2:0.6;
 
- let forward=new THREE.Vector3(
-  Math.sin(yaw),0,Math.cos(yaw)
- );
- let right=new THREE.Vector3(
-  Math.cos(yaw),0,-Math.sin(yaw)
- );
+ let forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+ let right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
 
  let move=new THREE.Vector3();
 
@@ -182,14 +195,19 @@ function animate(){
  if(keys["a"]) move.sub(right);
  if(keys["d"]) move.add(right);
 
+ if(keys["q"]) yaw+=0.05; // 王子ターン左
+ if(keys["e"]) yaw-=0.05; // 王子ターン右
+
  if(move.length()>0){
   move.normalize().multiplyScalar(speed);
   ball.position.add(move);
 
-  ball.rotation.x+=move.z*0.2;
-  ball.rotation.z-=move.x*0.2;
+  // 回転（移動時のみ）
+  ball.rotation.x+=move.z*0.1;
+  ball.rotation.z-=move.x*0.1;
  }
 
+ // ===== 巻き込み＆障害物判定 =====
  for(let obj of objects){
   if(obj.userData.attached) continue;
 
@@ -198,13 +216,13 @@ function animate(){
 
   if(dist<radius+objR){
 
-   if(obj.userData.size<size*1.2){
+   if(obj.userData.size<size*1.1){
     obj.userData.attached=true;
     let offset=obj.position.clone().sub(ball.position);
     ball.add(obj);
     obj.position.copy(offset);
 
-    size+=obj.userData.size*0.1;
+    size+=obj.userData.size*0.2;
     radius=size/10;
     ball.scale.set(radius,radius,radius);
     ball.position.y=radius;
@@ -212,21 +230,23 @@ function animate(){
    }
    else{
     let push=ball.position.clone().sub(obj.position).normalize();
-    ball.position.add(push);
-   }
-  }
- }
-
- for(let gate of gates){
-  if(size<gate.userData.minSize){
-   if(ball.position.distanceTo(gate.position)<30){
-    let push=ball.position.clone().sub(gate.position).normalize();
     ball.position.add(push.multiplyScalar(2));
    }
   }
  }
 
- let camDist=radius*4+30;
+ // ===== ゲート =====
+ for(let gate of gates){
+  if(size<gate.userData.minSize){
+   if(ball.position.distanceTo(gate.position)<80){
+    let push=ball.position.clone().sub(gate.position).normalize();
+    ball.position.add(push.multiplyScalar(5));
+   }
+  }
+ }
+
+ // ===== カメラ自動引き =====
+ let camDist=radius*4+50;
 
  camera.position.set(
   ball.position.x+Math.sin(yaw)*camDist*Math.cos(pitch),
