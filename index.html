@@ -2,24 +2,18 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Katamari Deluxe</title>
+<title>Katamari Stages</title>
 <style>
 body{margin:0;overflow:hidden;background:black;}
 #menu{
-position:absolute;
-top:50%;left:50%;
+position:absolute;top:50%;left:50%;
 transform:translate(-50%,-50%);
-color:white;
-font-family:sans-serif;
-text-align:center;
+color:white;text-align:center;font-family:sans-serif;
 }
 button{padding:10px 20px;margin:5px;font-size:16px;}
 #ui{
-position:absolute;
-top:10px;left:10px;
-color:white;
-font-family:sans-serif;
-display:none;
+position:absolute;top:10px;left:10px;
+color:white;font-family:sans-serif;display:none;
 }
 </style>
 </head>
@@ -30,121 +24,58 @@ display:none;
 <button onclick="startGame('house')">イエ</button>
 <button onclick="startGame('city')">マチ</button>
 <button onclick="startGame('world')">セカイ</button>
+<button onclick="startGame('earth')">チキュウ</button>
 <button onclick="startGame('space')">ウチュウ</button>
 </div>
 
 <div id="ui">
-サイズ: <span id="size">10</span>cm |
-目標: <span id="goal"></span> |
-残り: <span id="time"></span>
+サイズ: <span id="size">10</span>cm
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
-
 <script>
 
 let scene,camera,renderer,ball;
-let size=10,radius;
 let objects=[];
-let timeLimit,goalSize;
+let size=10,radius;
 let keys={};
 let yaw=0,pitch=0;
 
-//////////////////////////////////////////////////
-// ステージ開始
-//////////////////////////////////////////////////
-
-function startGame(type){
-
+function startGame(stage){
  document.getElementById("menu").style.display="none";
  document.getElementById("ui").style.display="block";
-
- if(type==="house"){goalSize=150;timeLimit=120;}
- if(type==="city"){goalSize=400;timeLimit=150;}
- if(type==="world"){goalSize=800;timeLimit=180;}
- if(type==="space"){goalSize=1500;timeLimit=220;}
-
- document.getElementById("goal").innerText=goalSize+"cm";
-
- init(type);
- startTimer();
+ init(stage);
 }
-
-//////////////////////////////////////////////////
-// 初期化
-//////////////////////////////////////////////////
 
 function init(stage){
 
  scene=new THREE.Scene();
-
- camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,5000);
+ camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,10000);
 
  renderer=new THREE.WebGLRenderer({antialias:true});
  renderer.setSize(innerWidth,innerHeight);
  renderer.shadowMap.enabled=true;
  document.body.appendChild(renderer.domElement);
 
- // 空
- const skyGeo=new THREE.SphereGeometry(4000,32,32);
- const skyMat=new THREE.MeshBasicMaterial({
-  color:stage==="space"?0x000011:0x87CEEB,
-  side:THREE.BackSide
- });
- const sky=new THREE.Mesh(skyGeo,skyMat);
- scene.add(sky);
-
- // 雲（space以外）
- if(stage!=="space"){
-  for(let i=0;i<20;i++){
-   const cloud=new THREE.Mesh(
-    new THREE.SphereGeometry(20,8,8),
-    new THREE.MeshBasicMaterial({color:0xffffff})
-   );
-   cloud.position.set(
-    (Math.random()-0.5)*2000,
-    200+Math.random()*200,
-    (Math.random()-0.5)*2000
-   );
-   scene.add(cloud);
-  }
- }
-
- // 光
  const light=new THREE.DirectionalLight(0xffffff,1);
  light.position.set(200,400,200);
  light.castShadow=true;
  scene.add(light);
  scene.add(new THREE.AmbientLight(0xffffff,0.4));
 
- // 地面
- const ground=new THREE.Mesh(
-  new THREE.PlaneGeometry(3000,3000),
-  new THREE.MeshStandardMaterial({
-   color:stage==="space"?0x333333:0x4caf50
-  })
- );
- ground.rotation.x=-Math.PI/2;
- ground.receiveShadow=true;
- scene.add(ground);
-
- // ボール
  size=10;
  radius=size/10;
 
- const tex=new THREE.TextureLoader().load(
-  "https://threejs.org/examples/textures/planets/jupiter.jpg"
- );
-
  ball=new THREE.Mesh(
   new THREE.SphereGeometry(radius,32,32),
-  new THREE.MeshStandardMaterial({map:tex})
+  new THREE.MeshStandardMaterial({color:0xff66cc})
  );
  ball.castShadow=true;
  ball.position.y=radius;
  scene.add(ball);
 
- createStageObjects(stage);
+ createMap(stage);
+ createObjects(stage);
 
  document.body.addEventListener("click",()=>{
   document.body.requestPointerLock();
@@ -165,75 +96,155 @@ function init(stage){
 }
 
 //////////////////////////////////////////////////
-// ステージ別オブジェクト
+// マップ生成
 //////////////////////////////////////////////////
 
-function createStageObjects(stage){
+function createMap(stage){
 
- objects=[];
+ if(stage==="house"){
+  scene.background=new THREE.Color(0xf5deb3);
 
- let count=stage==="house"?200:
-           stage==="city"?400:
-           stage==="world"?600:800;
-
- for(let i=0;i<count;i++){
-
-  let mesh;
-
-  if(stage==="house"){
-   mesh=new THREE.Mesh(
-    new THREE.BoxGeometry(3,2,2),
-    new THREE.MeshStandardMaterial({color:0xff4444})
-   );
-  }
-  else if(stage==="city"){
-   mesh=new THREE.Mesh(
-    new THREE.BoxGeometry(10,20,10),
-    new THREE.MeshStandardMaterial({color:0x888888})
-   );
-  }
-  else if(stage==="world"){
-   mesh=new THREE.Mesh(
-    new THREE.SphereGeometry(10),
-    new THREE.MeshStandardMaterial({color:0x228B22})
-   );
-  }
-  else{
-   mesh=new THREE.Mesh(
-    new THREE.SphereGeometry(20),
-    new THREE.MeshStandardMaterial({color:0x9999ff})
-   );
-  }
-
-  mesh.position.set(
-   (Math.random()-0.5)*2000,
-   5,
-   (Math.random()-0.5)*2000
+  const floor=new THREE.Mesh(
+   new THREE.PlaneGeometry(200,200),
+   new THREE.MeshStandardMaterial({color:0xd2b48c})
   );
+  floor.rotation.x=-Math.PI/2;
+  floor.receiveShadow=true;
+  scene.add(floor);
 
-  mesh.castShadow=true;
-  mesh.userData.size=Math.random()*50+5;
-  mesh.userData.attached=false;
-
-  scene.add(mesh);
-  objects.push(mesh);
+  // 壁
+  createWall(0,50,100,10);
+  createWall(0,-50,100,10);
+  createWall(50,0,10,100);
+  createWall(-50,0,10,100);
  }
+
+ else if(stage==="city"){
+  scene.background=new THREE.Color(0x87ceeb);
+
+  const ground=new THREE.Mesh(
+   new THREE.PlaneGeometry(1000,1000),
+   new THREE.MeshStandardMaterial({color:0x555555})
+  );
+  ground.rotation.x=-Math.PI/2;
+  scene.add(ground);
+ }
+
+ else if(stage==="world"){
+  scene.background=new THREE.Color(0xffcc88);
+
+  const ground=new THREE.Mesh(
+   new THREE.PlaneGeometry(2000,2000),
+   new THREE.MeshStandardMaterial({color:0xdeb887})
+  );
+  ground.rotation.x=-Math.PI/2;
+  scene.add(ground);
+ }
+
+ else if(stage==="earth"){
+  scene.background=new THREE.Color(0x000022);
+
+  const earth=new THREE.Mesh(
+   new THREE.SphereGeometry(500,64,64),
+   new THREE.MeshStandardMaterial({color:0x2266dd})
+  );
+  scene.add(earth);
+ }
+
+ else if(stage==="space"){
+  scene.background=new THREE.Color(0x000011);
+ }
+
+}
+
+function createWall(x,z,w,d){
+ const wall=new THREE.Mesh(
+  new THREE.BoxGeometry(w,20,d),
+  new THREE.MeshStandardMaterial({color:0x8b4513})
+ );
+ wall.position.set(x,10,z);
+ wall.castShadow=true;
+ wall.userData.block=true;
+ scene.add(wall);
+ objects.push(wall);
 }
 
 //////////////////////////////////////////////////
-// タイマー
+// オブジェクト生成
 //////////////////////////////////////////////////
 
-function startTimer(){
- const t=setInterval(()=>{
-  timeLimit--;
-  document.getElementById("time").innerText=timeLimit+"s";
-  if(timeLimit<=0){
-   clearInterval(t);
-   alert(size>=goalSize?"成功！":"失敗！");
-   location.reload();
+function createObjects(stage){
+
+ objects=[];
+
+ function addObject(mesh,sizeVal){
+  mesh.userData.size=sizeVal;
+  mesh.userData.attached=false;
+  mesh.castShadow=true;
+  scene.add(mesh);
+  objects.push(mesh);
+ }
+
+ if(stage==="house"){
+  for(let i=0;i<200;i++){
+   let s=Math.random()*10+1;
+   let obj=new THREE.Mesh(
+    new THREE.BoxGeometry(s,s,s),
+    new THREE.MeshStandardMaterial({color:0xffaaaa})
+   );
+   obj.position.set((Math.random()-0.5)*80,s/2,(Math.random()-0.5)*80);
+   addObject(obj,s);
   }
- },1000);
+ }
+
+ if(stage==="city"){
+  for(let i=0;i<300;i++){
+   let s=Math.random()*30+5;
+   let obj=new THREE.Mesh(
+    new THREE.CylinderGeometry(s/4,s/4,s,8),
+    new THREE.MeshStandardMaterial({color:0x228b22})
+   );
+   obj.position.set((Math.random()-0.5)*800,s/2,(Math.random()-0.5)*800);
+   addObject(obj,s);
+  }
+ }
+
+ if(stage==="world"){
+  for(let i=0;i<400;i++){
+   let s=Math.random()*80+20;
+   let obj=new THREE.Mesh(
+    new THREE.BoxGeometry(s,s,s),
+    new THREE.MeshStandardMaterial({color:0x888888})
+   );
+   obj.position.set((Math.random()-0.5)*1500,s/2,(Math.random()-0.5)*1500);
+   addObject(obj,s);
+  }
+ }
+
+ if(stage==="earth"){
+  for(let i=0;i<100;i++){
+   let s=Math.random()*150+50;
+   let obj=new THREE.Mesh(
+    new THREE.SphereGeometry(s/2),
+    new THREE.MeshStandardMaterial({color:0xffffff})
+   );
+   obj.position.set((Math.random()-0.5)*2000,s/2,(Math.random()-0.5)*2000);
+   addObject(obj,s);
+  }
+ }
+
+ if(stage==="space"){
+  for(let i=0;i<150;i++){
+   let s=Math.random()*200+50;
+   let obj=new THREE.Mesh(
+    new THREE.SphereGeometry(s/2),
+    new THREE.MeshStandardMaterial({color:0x9999ff})
+   );
+   obj.position.set((Math.random()-0.5)*3000,s/2,(Math.random()-0.5)*3000);
+   addObject(obj,s);
+  }
+ }
+
 }
 
 //////////////////////////////////////////////////
@@ -244,7 +255,6 @@ function animate(){
  requestAnimationFrame(animate);
 
  let speed=keys["shift"]?0.6:0.3;
-
  let move=new THREE.Vector3();
 
  if(keys["w"]) move.z-=1;
@@ -253,27 +263,24 @@ function animate(){
  if(keys["d"]) move.x+=1;
 
  if(move.length()>0){
-
   move.normalize().multiplyScalar(speed);
-
   ball.position.add(move);
 
-  // 動いたときだけ回転
   ball.rotation.x+=move.z*0.2;
   ball.rotation.z-=move.x*0.2;
  }
 
- // 吸収
  for(let obj of objects){
+
   if(obj.userData.attached) continue;
 
   let dist=ball.position.distanceTo(obj.position);
+  let objRadius=obj.userData.size/10;
 
-  if(dist<radius+obj.userData.size*0.1){
+  if(dist<radius+objRadius){
+
    if(obj.userData.size<size*1.2){
-
     obj.userData.attached=true;
-
     let offset=obj.position.clone().sub(ball.position);
     ball.add(obj);
     obj.position.copy(offset);
@@ -282,19 +289,22 @@ function animate(){
     radius=size/10;
     ball.scale.set(radius,radius,radius);
     ball.position.y=radius;
-
     document.getElementById("size").innerText=Math.floor(size);
+   }
+   else{
+    // 障害物押し返し
+    let push=ball.position.clone().sub(obj.position).normalize().multiplyScalar(1);
+    ball.position.add(push);
    }
   }
  }
 
- // カメラ自由
  let camDist=radius*3+30;
 
  camera.position.set(
-  ball.position.x+Math.sin(yaw)*camDist*Math.cos(pitch),
-  ball.position.y+Math.sin(pitch)*camDist+10,
-  ball.position.z+Math.cos(yaw)*camDist*Math.cos(pitch)
+  ball.position.x+Math.sin(yaw)*camDist,
+  ball.position.y+camDist*0.6,
+  ball.position.z+Math.cos(yaw)*camDist
  );
  camera.lookAt(ball.position);
 
